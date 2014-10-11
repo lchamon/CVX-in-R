@@ -3,7 +3,7 @@ rm(list = ls())
 
 # Source files
 source('cvx.R')
-source('cvx_methods.R')
+source('aux_functions.R')
 source('cvxfun.R')
 
 
@@ -37,12 +37,12 @@ report <- function(x, name = 'TEST'){
 
 
 
-# Method tests
+# Auxiliary functions tests
 x <- cvx()
 z <- cvx(10)
 b <- matrix(rnorm(10,0,2), nrow = 10)
 
-methods <- c(
+aux_functions <- c(
   # is.scalar
   cvx_test(is.scalar('a'),            'CVX_ERROR'),
   cvx_test(is.scalar(1),              TRUE),
@@ -59,7 +59,7 @@ methods <- c(
            env = list(y = 10))),        quote(a + 10))
 )
 
-report(methods, name = 'METHODS')
+report(aux_functions, name = 'AUXILIARY FUNCTIONS')
 
 
 # CVX tests
@@ -92,7 +92,7 @@ cvx_tests <- c(
   cvx_test(dim(m),                  c(10,5))
 )
 
-report(cvx_tests, name = 'CVX')
+report(cvx_tests, name = 'CVX OBJECTS')
 
 
 # CVX function tests
@@ -134,34 +134,38 @@ cvxfun_tests <- c(
   cvx_test(get_ruleset(x),            'CVX_ERROR')
 )
 
-report(cvxfun_tests, name = 'CVX FUNCTION DEFINITIONS')
+report(cvxfun_tests, name = 'CVX FUNCTIONS')
 
 
 
 # DCP rules tests
-rule1 <- dcprule(convex, convex, convex)
-rule2 <- dcprule(convex, affine, convex)
-rule3 <- dcprule(constant, concave, concave)
+rule1 <- dcprule(convex, convex, out = convex)
+rule2 <- dcprule(convex, affine, out = convex)
+rule3 <- dcprule(constant, concave, out = concave)
 
 dcprule_tests <- c(
   cvx_test(class(rule1),            c('dcprule', 'cvx')),
   cvx_test(class(rule2),            c('dcprule', 'cvx')),
   # dcprule
-  cvx_test(quote(dcprule(affine, affine, affine)[[1]]),   quote(affine)),
-  cvx_test(quote(dcprule(affine, affine, affine)[[2]]),   quote(affine)),
-  cvx_test(quote(dcprule(affine, affine, affine)[[3]]),   quote(affine)),
-  cvx_test(quote(rule1[[1]]),                             quote(convex)),
-  cvx_test(quote(rule1[[2]]),                             quote(convex)),
-  cvx_test(quote(rule1[[3]]),                             quote(convex)),
-  cvx_test(quote(dcprule(convex, affine, convex)[[1]]),   rule2[[1]]),
-  cvx_test(quote(dcprule(convex, affine, convex)[[2]]),   rule2[[2]]),
-  cvx_test(quote(dcprule(convex, affine, convex)[[3]]),   rule2[[3]]),
+  cvx_test(quote(dcprule(affine, affine, out = affine)[[1]]),   quote(affine)),
+  cvx_test(quote(dcprule(affine, affine, out = affine)[[2]]),   quote(affine)),
+  cvx_test(quote(dcprule(affine, affine, out = affine)[[3]]),   quote(affine)),
+  cvx_test(quote(rule1[[1]]),                                   quote(convex)),
+  cvx_test(quote(rule1[[2]]),                                   quote(convex)),
+  cvx_test(quote(rule1[[3]]),                                   quote(convex)),
+  cvx_test(quote(dcprule(convex, affine, out = convex)[[1]]),   rule2[[1]]),
+  cvx_test(quote(dcprule(convex, affine, out = convex)[[2]]),   rule2[[2]]),
+  cvx_test(quote(dcprule(convex, affine, out = convex)[[3]]),   rule2[[3]]),
+  cvx_test(quote(dcprule(affine, out = convex)[[1]]),           quote(affine)),
+  cvx_test(quote(dcprule(affine, out = convex)[[2]]),           quote(convex)),
+  cvx_test(quote(dcprule(affine, convex)),                      'CVX_ERROR'),
+  cvx_test(quote(dcprule(affine, convex, convex)),              'CVX_ERROR'),
   # ==.dcprule
-  cvx_test(dcprule(convex, convex, convex) == rule1,      TRUE),
-  cvx_test(rule2 == dcprule(convex, affine, convex),      TRUE),
-  cvx_test(rule3 == rule3,                                TRUE),
-  cvx_test(rule1 == rule3,                                FALSE),
-  cvx_test(rule1 == list(quote(affine),quote(affine)),    'CVX_ERROR')
+  cvx_test(dcprule(convex, convex, out = convex) == rule1,      TRUE),
+  cvx_test(rule2 == dcprule(convex, affine, out = convex),      TRUE),
+  cvx_test(rule3 == rule3,                                      TRUE),
+  cvx_test(rule1 == rule3,                                      FALSE),
+  cvx_test(rule1 == list(quote(affine), quote(affine)),         'CVX_ERROR')
 )
 
 report(dcprule_tests, name = 'DCP RULES')
@@ -169,34 +173,41 @@ report(dcprule_tests, name = 'DCP RULES')
 
 
 # Adding DCP rules to functions tests
-rule1 <- dcprule(convex, convex, convex)
-rule2 <- dcprule(convex, affine, convex)
-rule3 <- dcprule(constant, concave, concave)
+rule1 <- dcprule(convex, convex, out = convex)
+rule2 <- dcprule(convex, affine, out = convex)
+rule3 <- dcprule(constant, concave, out = concave)
 f <- cvxfun(e1, e2)
 g <- cvxfun(e1, e2) + rule1 + rule2 + rule3
-h <- cvxfun(e1, e2) + dcprule(convex, convex, convex) + dcprule(convex, convex, affine) + rule3
+h <- cvxfun(e1, e2) +
+  dcprule(convex, convex, out = convex) +
+  dcprule(convex, convex, out = affine) +
+  rule3
+j <- cvxfun(e1)
 
 add_dcprule_tests <- c(
   cvx_test(class(f),                c('cvxfun', 'cvx')),
   cvx_test(class(g),                c('cvxfun', 'cvx')),
   cvx_test(class(h),                c('cvxfun', 'cvx')),
   # + dcprule
-  cvx_test(get_ruleset(f + dcprule(affine, affine, affine))[[1]], 
-           dcprule(affine, affine, affine)),
-  cvx_test(get_ruleset(f + rule1)[[1]],                       dcprule(convex, convex, convex)),
-  cvx_test(get_ruleset(f + rule1)[[1]],                       rule1),
-  cvx_test(get_ruleset(f + rule1 + rule2)[[1]],               dcprule(convex, convex, convex)),
-  cvx_test(get_ruleset(f + rule1 + rule2)[[2]],               dcprule(convex, affine, convex)),
-  cvx_test(get_ruleset(f + rule1 +
-                         dcprule(convex, affine, convex))[[1]],   rule1),
-  cvx_test(get_ruleset(f + rule1 +
-                         dcprule(convex, affine, convex))[[2]],   rule2),
-  cvx_test(get_ruleset(g)[[1]],                                   rule1),
-  cvx_test(get_ruleset(g)[[2]],                                   rule2),
-  cvx_test(get_ruleset(g)[[3]],                                   rule3)
+  cvx_test(get_ruleset(f + dcprule(affine, affine, out = affine))[[1]], 
+                                                dcprule(affine, affine, out = affine)),  
+  cvx_test(get_ruleset(f + rule1 + dcprule(convex, affine, out = convex))[[1]],    rule1),
+  cvx_test(get_ruleset(f + rule1 + dcprule(convex, affine, out = convex))[[2]],    rule2),
+  cvx_test(get_ruleset(f + rule1)[[1]],                 dcprule(convex, convex, out = convex)),
+  cvx_test(get_ruleset(f + rule1)[[1]],                 rule1),
+  cvx_test(get_ruleset(f + rule1 + rule2)[[1]],         dcprule(convex, convex, out = convex)),
+  cvx_test(get_ruleset(f + rule1 + rule2)[[2]],         dcprule(convex, affine, out = convex)),
+  cvx_test(f + rule1 + dcprule(convex, affine, convex),             'CVX_ERROR'),
+  cvx_test(get_ruleset(g)[[1]],                                     rule1),
+  cvx_test(get_ruleset(g)[[2]],                                     rule2),
+  cvx_test(get_ruleset(g)[[3]],                                     rule3),
+  cvx_test(f + dcprule(convex, out = convex),                       'CVX_ERROR'),
+  cvx_test(get_ruleset(j + dcprule(convex, out = convex))[[1]],     dcprule(convex, out = convex)),
+  cvx_test(get_ruleset(j + rule1),            'CVX_ERROR'),
+  cvx_test(get_ruleset(j + rule2),            'CVX_ERROR')
 )
 
-report(add_dcprule_tests, name = 'DCP RULESET CREATION')
+report(add_dcprule_tests, name = 'ADDING DCP RULES TO CVX FUNCTIONS')
 
 
 
@@ -204,12 +215,16 @@ report(add_dcprule_tests, name = 'DCP RULESET CREATION')
 aff <- cvx(curvature = 'affine')
 conv <- cvx(curvature = 'convex')
 conc <- cvx(curvature = 'concave')
-rule1 <- dcprule(convex, convex, convex)
-rule2 <- dcprule(convex, affine, convex)
-rule3 <- dcprule(constant, concave, concave)
+rule1 <- dcprule(convex, convex, out = convex)
+rule2 <- dcprule(convex, affine, out = convex)
+rule3 <- dcprule(constant, concave, out = concave)
 f <- cvxfun(e1, e2)
 g <- cvxfun(e1, e2) + rule1 + rule2 + rule3
-h <- cvxfun(e1, e2) + dcprule(convex, convex, convex) + dcprule(convex, convex, affine) + rule3
+h <- cvxfun(e1, e2) +
+  dcprule(convex, convex, out = convex) +
+  dcprule(convex, convex, out = affine) +
+  rule3
+j <- cvxfun(e1) + dcprule(affine, out = convex) + dcprule(constant, out = constant)
 
 dcpcheck_tests <- c(
   # dcp_check_rule
@@ -237,7 +252,10 @@ dcpcheck_tests <- c(
   cvx_test(dcpcheck(h, conv, conv), 'CVX_ERROR'),
   cvx_test(dcpcheck(h, conc, conv), 'CVX_ERROR'),
   cvx_test(dcpcheck(h, conc, conv), 'CVX_ERROR'),
-  cvx_test(dcpcheck(h, 10, conc),   'concave')
+  cvx_test(dcpcheck(h, 10, conc),   'concave'),
+  cvx_test(dcpcheck(j, 10),         'constant'),
+  cvx_test(dcpcheck(j, aff),        'convex'),
+  cvx_test(dcpcheck(j, conv),       'CVX_ERROR')
 )
 
 report(dcpcheck_tests, name = 'DCP RULES CHECK')

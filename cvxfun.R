@@ -7,7 +7,9 @@ cvxfun <- function(...) {
   args <- paste0(sapply(args, function(x) {paste0(deparse(x), " = ")}), collapse = ", ")
   args <- eval(parse(text = paste0("alist(", args, ")")))
   
-  f <- eval(call("function", as.pairlist(args), quote({})))
+  f <- eval(call("function", as.pairlist(args),
+                 quote({})
+          ))
 
   structure(f, class = c("cvxfun", "cvx"))
 }
@@ -72,6 +74,7 @@ print.cvxfun <- function(x){
     cat("\n")
     cat("DCP rule set")
     cat("\n")
+    
     for (rule in get_ruleset(x)){
       print(rule)
       cat("\n")
@@ -93,7 +96,7 @@ print.cvxfun <- function(x){
   # Add DCP rule
   else if (inherits(e2, 'dcprule'))       add_dcprule(e1, e2)
   # Unsupported operation
-  else stop("Don't know how to add ", e2name, " to a CVX function", call. = FALSE)
+  else stop("Don't know how to add ", e2name, " to a CVX function.", call. = FALSE)
 }
 
 
@@ -113,7 +116,7 @@ monotonicity <- function(x){
   objname <- deparse(substitute(x))
   
   # If x was already character, strip the ""
-  objname <- gsub('"', '', objname)
+  objname <- gsub("\"", "", objname)
   
   structure(objname, class = c('monotonicity', 'cvx'))
 }
@@ -124,7 +127,14 @@ add_curvature <- function(e1,e2)      { attr(e1, "curvature") <- e2; e1 }
 add_monotonicity <- function(e1,e2)   { attr(e1, "monotonicity") <- e2; e1 }
 add_range <- function(e1,e2)          { attr(e1, "range") <- e2; e1 }
 
-add_dcprule <- function(e1, e2){
+add_dcprule <- function(e1, e2) {
+  nargs_e1 <- length(formals(e1))
+  nargs_e2 <- length(e2) - 1
+  
+  if (nargs_e1 != nargs_e2) {
+    stop("The number of arguments in the function does not match the DCP rule.")
+  }
+  
   ruleset <- get_ruleset(e1)
   
   if (is.null(ruleset)) {
@@ -139,27 +149,47 @@ add_dcprule <- function(e1, e2){
 
 ## DCP rules methods ###################################
 # dcprule(): create new DCP rule
-dcprule <- function(e1cond, e2cond, result){
-  structure(c(substitute(e1cond), substitute(e2cond), substitute(result)),
+dcprule <- function(..., out){
+  conds <- eval(substitute(alist(...)))
+  
+  if(missing(out)){
+    stop('You must provide an outcome for the DCP rule.')
+  }
+  
+  structure(c(conds, substitute(out)),
             class = c("dcprule", "cvx"))
 }
 
 
+# is.dcprule(): is a DCP rule?
+is.dcprule <- function(r){
+  inherits(r, 'dcprule')
+}
+
+
 # print.dcprule(): shows the definition of a DCP rule
-print.dcprule <- function(x){
+print.dcprule <- function(r){
+  rlen <- length(r)
+  
   cat("DCP rule")
   cat("\n")
-  cat("Argument:", deparse(x[[1]]))
-  cat("\n")
-  cat("Argument:", deparse(x[[2]]))
-  cat("\n")
-  cat("Results:", deparse(x[[3]]))
+  
+  if (rlen > 1){
+    for (n in seq(1, rlen-1)){
+      cat("Argument:", deparse(r[[n]]))
+      cat("\n")
+    }
+  }
+
+  cat("Results:", deparse(r[[rlen]]))
   cat("\n")
 }
 
 
 # ==.dcprule: compare DCP rules
 `==.dcprule` <- function(r1, r2){
+  stopifnot(is.dcprule(r1), is.dcprule(r2))
+  
   if(length(r1) != length(r2)){
     stop("Rules must have the same length to be compared.")
   }
@@ -174,30 +204,50 @@ print.dcprule <- function(x){
 
 # dcp_check_rule(): checks if rule applies to arguments e1 and e2
 # Returns either the curvature of the result or FALSE
-dcp_check_rule <- function(rule, e1, e2){
+dcp_check_rule <- function(rule, ...){
+  if (!is.dcprule(rule)) {
+    stop("You must provide a DCP rule for checking.")
+  }
+  
+  args <- eval(substitute(list(...)))
+  rule_nargs <- length(rule) - 1
+  rule_out <- length(rule)
+  
+  if (length(args) != rule_nargs) {
+    stop("The number of arguments provided does not match the rule.")
+  }
+  
   substitutions <- list(convex   = quote(get_curvature(x) == "convex"),
                         concave  = quote(get_curvature(x) == "concave"),
                         affine   = quote(get_curvature(x) == "affine"),
                         constant = quote(get_curvature(x) == "constant"))
   
-  rule[-3] <- lapply(rule[-3], subs_q, env = substitutions)
+  rule[-rule_out] <- lapply(rule[-rule_out], subs_q, env = substitutions)
   
+  check <- mapply(function(r, arg) eval(dcp_build_test(r, arg), enclos = emptyenv()),
+                  rule[-rule_out],
+                  args)
   
-  if (eval(dcp_build_test(rule[[1]], e1), enclos = emptyenv()) &&
-        eval(dcp_build_test(rule[[2]], e2), enclos = emptyenv())) {
-    deparse(rule[[3]])
+  if (all(check)) {
+    deparse(rule[[rule_out]])
   } else {
     FALSE
   }
 }
 
 
-# dcp_build_test: builds an expression to check condition cond on argument e1
+# dcp_build_test: builds an expression to check condition [cond] on argument [x]
 dcp_build_test <- function(cond, x) subs_q(cond, list(x = substitute(x)))
 
 
-dcpcheck <- function(FUN, e1, e2){
+# dcpcheck: checks DCP ruleset of a CVX function
+dcpcheck <- function(FUN, ...){
   fname <- deparse(substitute(FUN))
+  
+  if (!is.cvxfun(FUN)) {
+    stop(fname, " is not a CVX functions.", call. = FALSE)
+  }
+
   ruleset <- get_ruleset(FUN)
   
   if (is.null(ruleset)){
@@ -206,7 +256,7 @@ dcpcheck <- function(FUN, e1, e2){
   }
   
   # Check DCP rules
-  test_result <- lapply(ruleset, function(x) dcp_check_rule(x, e1, e2))
+  test_result <- lapply(ruleset, function(r) dcp_check_rule(r, ...))
   test_result <- unique(test_result)
   test_result <- test_result[sapply(test_result, is.character)]
   
@@ -214,13 +264,16 @@ dcpcheck <- function(FUN, e1, e2){
     # If there are more than 2 unique solutions, then the ruleset is inconsistent
     # (i.e., arguments evaluate to different curvatures)
     stop('The DCP ruleset of ', fname, ' is inconsistent: results evaluated to ', test_result)
+  } else if (length(test_result) == 0){
+    # If test results are empty, then all rules were violated
+    stop("DCP violation: you are not allowed to use [", fname, "] on ",
+         paste0("{",
+                sapply(eval(substitute(list(...))), get_curvature),
+                "}",
+                collapse = ', '),
+         call. = FALSE)
+  } else {
+    # Return the curvature evaluated by the DCP ruleset
+    test_result[[1]]
   }
-  
-  if (length(test_result) == 0){
-    stop(paste0("You are not allowed to apply {", fname, "} on ",
-                "{", get_curvature(e1), "}", " and ",
-                "{", get_curvature(e2), "}"), call. = FALSE)
-  }
-  
-  test_result[[1]]
 }
