@@ -2,14 +2,20 @@
 cvxfun <- function(...) {
   # Get arguments
   args <- eval(substitute(alist(...)))
+  args_name <- sapply(args, deparse)
 
   # Make function compatible argument list [e.g., alist(x = , y = )]
   args <- paste0(sapply(args, function(x) {paste0(deparse(x), " = ")}), collapse = ", ")
   args <- eval(parse(text = paste0("alist(", args, ")")))
   
-  f <- eval(call("function", as.pairlist(args),
-                 quote({})
-          ))
+  dcpcheck_call <- paste0('dcpcheck(',
+                          'fname = deparse(match.call()[[1]]),',
+                          'FUN = match.fun(match.call()[[1]], descend = FALSE),',
+                          paste0(args_name, collapse = ','),
+                          ')')
+  
+  f <- eval(call("function", as.pairlist(args), quote({})))
+  body(f) <- parse(text = dcpcheck_call)
 
   structure(f, class = c("cvxfun", "cvx"))
 }
@@ -204,15 +210,14 @@ print.dcprule <- function(r){
 
 # dcp_check_rule(): checks if rule applies to arguments e1 and e2
 # Returns either the curvature of the result or FALSE
-dcp_check_rule <- function(rule, ...){
+dcp_check_rule <- function(rule, args){
   if (!is.dcprule(rule)) {
     stop("You must provide a DCP rule for checking.")
   }
-  
-  args <- eval(substitute(list(...)))
+
   rule_nargs <- length(rule) - 1
   rule_out <- length(rule)
-  
+
   if (length(args) != rule_nargs) {
     stop("The number of arguments provided does not match the rule.")
   }
@@ -241,8 +246,10 @@ dcp_build_test <- function(cond, x) subs_q(cond, list(x = substitute(x)))
 
 
 # dcpcheck: checks DCP ruleset of a CVX function
-dcpcheck <- function(FUN, ...){
-  fname <- deparse(substitute(FUN))
+dcpcheck <- function(FUN, fname, ...){
+  if (missing(fname)) {
+    fname <- deparse(substitute(FUN))
+  }
   
   if (!is.cvxfun(FUN)) {
     stop(fname, " is not a CVX functions.", call. = FALSE)
@@ -252,11 +259,11 @@ dcpcheck <- function(FUN, ...){
   
   if (is.null(ruleset)){
     # Function has no DCP ruleset => its result is undefined
-    stop("Function {", fname, "} has no ruleset.", call. = FALSE)
+    stop("Function [", fname, "] has no ruleset.", call. = FALSE)
   }
   
   # Check DCP rules
-  test_result <- lapply(ruleset, function(r) dcp_check_rule(r, ...))
+  test_result <- lapply(ruleset, function(r) dcp_check_rule(r, list(...)))
   test_result <- unique(test_result)
   test_result <- test_result[sapply(test_result, is.character)]
   
@@ -266,11 +273,12 @@ dcpcheck <- function(FUN, ...){
     stop('The DCP ruleset of ', fname, ' is inconsistent: results evaluated to ', test_result)
   } else if (length(test_result) == 0){
     # If test results are empty, then all rules were violated
-    stop("DCP violation: you are not allowed to use [", fname, "] on ",
+    stop("DCP violation: you are not allowed to do ", fname, "(",
          paste0("{",
-                sapply(eval(substitute(list(...))), get_curvature),
+                sapply(list(...), get_curvature),
                 "}",
                 collapse = ', '),
+         ").",
          call. = FALSE)
   } else {
     # Return the curvature evaluated by the DCP ruleset
