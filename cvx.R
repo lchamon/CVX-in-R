@@ -33,7 +33,13 @@ print.cvx <- function(x){
   cat('\n')
   cat('Curvature:', get_curvature(x))
   cat('\n')
-  cat('Range:', get_range(x))
+  
+  cvxrange <- get_range(x)
+  if (is.null(cvxrange)) {
+    cat('Range:', '(-infty, +infty)')
+  } else {
+    cat('Range:', deparse(cvxrange))
+  }
   cat('\n')
 }
 
@@ -45,31 +51,31 @@ dim.cvx <- function(x){
 
 
 # get_curvature(): returns the curvature of an object
-get_curvature <- function(x) {
+get_curvature <- function(x) UseMethod('get_curvature')
+
+get_curvature.default <- function(x) {
   if (is.numeric(x)) {
     # Numeric constants
     'constant'
-  } else if (is.cvx(x)) {
-    # CVX object
-    attr(x, 'curvature')
   } else {
-    stop('Curvature is not defined this object')
+    stop('Curvature is not defined this object.')
   }
+}
+
+get_curvature.cvx <- function(x) {
+  # CVX object
+  attr(x, 'curvature')
 }
 
 
 # get_range(): returns the range of CVX objects
 # TODO
-get_range <- function(x) {
-  if (is.cvx(x)){
-    range <- attr(x, 'range')
-    
-    if (is.null(range)) {
-      '(-infty, +infty)'
-    } else {
-      deparse(range)
-    }
-  } else {
-    stop('Range is only defined for CVX objects.')
-  }
+get_range <- function(x) UseMethod('get_range')
+
+get_range.default <- function(x) {
+  stop('Range is only defined for CVX objects.')
+}
+
+get_range.cvx <- function(x) {
+  range <- attr(x, 'range')
 }

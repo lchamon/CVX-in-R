@@ -13,8 +13,8 @@ test_that("Check objects class", {
   x <- cvx()
   m <- cvx(10, 5, curvature = 'concave')
   
-  expect_identical(class(x), 'cvx')
-  expect_identical(class(m), 'cvx')
+  expect_is(x, 'cvx')
+  expect_is(m, 'cvx')
 })
 
 

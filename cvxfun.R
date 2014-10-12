@@ -8,16 +8,33 @@ cvxfun <- function(...) {
   args <- paste0(sapply(args, function(x) {paste0(deparse(x), " = ")}), collapse = ", ")
   args <- eval(parse(text = paste0("alist(", args, ")")))
   
-  dcpcheck_call <- paste0('dcpcheck(',
-                          'fname = deparse(match.call()[[1]]),',
-                          'FUN = match.fun(match.call()[[1]], descend = FALSE),',
-                          paste0(args_name, collapse = ','),
-                          ')')
+  cvxfun_body <- paste0(
+    '{', '\n',
+    paste0('force(', args_name, ')', collapse = '\n'),
+    '\n',
+    'fcall <- match.call()[[1]]', '\n',
+    'FUN <- match.fun(fcall, descend = FALSE)', '\n',
+    'fname <- deparse(fcall)', '\n',
+    'curv <- dcpcheck(fname = fname, FUN = FUN,', paste0(args_name, collapse = ', '), ')', '\n',
+    'cvx(curvature = curv)', '\n',
+    '}'
+  )
   
   f <- eval(call("function", as.pairlist(args), quote({})))
-  body(f) <- parse(text = dcpcheck_call)
+  body(f) <- parse(text = cvxfun_body)
 
-  structure(f, class = c("cvxfun", "cvx"))
+  # Function body example
+  # {
+  # force(x)
+  # force(y)
+  # fcall <- match.call()[[1]]
+  # FUN <- match.fun(fcall, descend = FALSE)
+  # fname <- deparse(fcall)
+  # curv <- dcpcheck(fname = fname, FUN = FUN, x, y)
+  # cvx(curvature = curv)
+  # }
+
+  structure(f, class = c("cvxfun"))
 }
 
 
@@ -29,6 +46,7 @@ is.cvxfun <- function(x){
 
 # get_curvature(): returns the curvature of a CVX function
 # Inherits from class cvx
+get_curvature.cvxfun <- get_curvature.cvx
 
 
 # get_monotonicity(): returns the monotonicity of a CVX function
@@ -43,6 +61,7 @@ get_monotonicity <- function(x) {
 
 # get_range(): returns the range of a CVX function
 # Inherits from class cvx
+get_range.cvxfun <- get_range.cvx
 
 
 # get_ruleset(): returns the DCP ruleset of a CVX function
@@ -89,18 +108,18 @@ print.cvxfun <- function(x){
 }
 
 
-# +: adds attributes to CVX function prototypes
+# +.cvxfun: adds attributes to CVX function prototypes
 `+.cvxfun` <- function(e1, e2){
   e2name <- deparse(substitute(e2))
   
   # Add curvature
-  if (inherits(e2, 'curvature'))          add_curvature(e1, e2)
+  if (inherits(e2, 'cvx_curvature'))         add_curvature(e1, e2)
   # Add monotonicity
-  else if (inherits(e2, 'monotonicity'))  add_monotonicity(e1, e2)
+  else if (inherits(e2, 'cvx_monotonicity')) add_monotonicity(e1, e2)
   # Add range
-  else if (inherits(e2, 'range'))         add_range(e1, e2)
+  else if (inherits(e2, 'range'))            add_range(e1, e2)
   # Add DCP rule
-  else if (inherits(e2, 'dcprule'))       add_dcprule(e1, e2)
+  else if (inherits(e2, 'dcprule'))          add_dcprule(e1, e2)
   # Unsupported operation
   else stop("Don't know how to add ", e2name, " to a CVX function.", call. = FALSE)
 }
@@ -113,7 +132,7 @@ curvature <- function(x) {
   # If x was already character, strip the ""
   objname <- gsub('"', '', objname)
   
-  structure(objname, class = c('curvature', 'cvx'))
+  structure(objname, class = 'cvx_curvature')
 }
 
 
@@ -124,14 +143,14 @@ monotonicity <- function(x){
   # If x was already character, strip the ""
   objname <- gsub("\"", "", objname)
   
-  structure(objname, class = c('monotonicity', 'cvx'))
+  structure(objname, class = 'cvx_monotonicity')
 }
 
 
 # Add stuff to CVX functions
-add_curvature <- function(e1,e2)      { attr(e1, "curvature") <- e2; e1 }
-add_monotonicity <- function(e1,e2)   { attr(e1, "monotonicity") <- e2; e1 }
-add_range <- function(e1,e2)          { attr(e1, "range") <- e2; e1 }
+add_curvature <- function(e1,e2)      { attr(e1, "curvature") <- unclass(e2); e1 }
+add_monotonicity <- function(e1,e2)   { attr(e1, "monotonicity") <- unclass(e2); e1 }
+add_range <- function(e1,e2)          { attr(e1, "range") <- unclass(e2); e1 }
 
 add_dcprule <- function(e1, e2) {
   nargs_e1 <- length(formals(e1))
@@ -163,7 +182,7 @@ dcprule <- function(..., out){
   }
   
   structure(c(conds, substitute(out)),
-            class = c("dcprule", "cvx"))
+            class = c("dcprule"))
 }
 
 

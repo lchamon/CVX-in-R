@@ -15,9 +15,9 @@ test_that("Check classes", {
   curv1 <- curvature(convex)
   mono1 <- monotonicity(nondecreasing)
   
-  expect_identical(class(f),     c('cvxfun', 'cvx'))
-  expect_identical(class(curv1), c('curvature', 'cvx'))
-  expect_identical(class(mono1), c('monotonicity', 'cvx'))
+  expect_is(f,     'cvxfun')
+  expect_is(curv1, 'cvx_curvature')
+  expect_is(mono1, 'cvx_monotonicity')
 })
 
 
@@ -50,21 +50,18 @@ test_that("get methods for CVX functions", {
 })
 
 
-test_that("Check objects class", {
+test_that("Setting CVX functions atrributes", {
   x <- cvx()
   f <- cvxfun(e1, e2)
   curv1 <- curvature(convex)
   mono1 <- monotonicity(nondecreasing)
   
-  expect_identical(get_curvature(f + curvature(convex)),                   curvature(convex))
-  expect_identical(get_curvature(f + curvature('convex')),                 curvature(convex))
-  expect_identical(get_curvature(f + curvature(affine)),                   curvature(affine))
-  expect_identical(get_curvature(f + curv1),                               curvature(convex))
-  expect_identical(get_curvature(f + curv1 + curvature(concave)),          curvature(concave))
-  expect_identical(get_monotonicity(f + mono1),                           
-                                                                  monotonicity(nondecreasing))
-  expect_identical(get_monotonicity(f + monotonicity(nonincreasing)),     
-                                                                  monotonicity(nonincreasing))
-  expect_identical(get_monotonicity(f + mono1 + monotonicity(increasing)),
-                                                                  monotonicity(increasing))
+  expect_equal(get_curvature(f + curvature(convex)),                   'convex')
+  expect_equal(get_curvature(f + curvature('convex')),                 'convex')
+  expect_equal(get_curvature(f + curvature(affine)),                   'affine')
+  expect_equal(get_curvature(f + curv1),                               'convex')
+  expect_equal(get_curvature(f + curv1 + curvature(concave)),          'concave')
+  expect_equal(get_monotonicity(f + mono1),                            'nondecreasing')
+  expect_equal(get_monotonicity(f + monotonicity(nonincreasing)),      'nonincreasing')
+  expect_equal(get_monotonicity(f + mono1 + monotonicity(increasing)), 'increasing')
 })
