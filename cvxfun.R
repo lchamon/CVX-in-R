@@ -248,11 +248,14 @@ dcp_check_rule <- function(rule, args){
   
   rule[-rule_out] <- lapply(rule[-rule_out], subs_q, env = substitutions)
   
-  check <- mapply(function(r, arg) eval(dcp_build_test(r, arg), enclos = emptyenv()),
+  check <- mapply(function(r, arg) {
+                    out <- eval(dcp_build_test(r, arg), enclos = emptyenv())
+                    if (identical(out, logical(0))) FALSE else out
+                  },
                   rule[-rule_out],
                   args)
   
-  if (all(check)) {
+  if (all(unlist(check))) {
     deparse(rule[[rule_out]])
   } else {
     FALSE

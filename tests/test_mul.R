@@ -132,6 +132,8 @@ test_that("Vector case", {
   convex_t <- cvx(1, 10, curvature = 'convex')
   concave_t <- cvx(1, 10, curvature = 'concave')
   constant_t <- cvx(1, 10, curvature = 'constant')
+  convex2 <- cvx(2, 1, curvature = 'convex')
+  concave2 <- cvx(2, 1, curvature = 'concave')
   affine2 <- cvx(2, 1, curvature = 'affine')
   A <- matrix(runif(50), 5, 10)
   B <- matrix(runif(50), 10, 5)
@@ -146,8 +148,12 @@ test_that("Vector case", {
   expect_equal(dim(A*concave),  c(5,1))
   expect_that(A*affine,         is_affine())
   expect_equal(dim(A*affine),   c(5,1))
+  
+  expect_error(C*convex2,       '{constant}, {convex}', fixed = TRUE)
+  expect_error(C*concave2,      '{constant}, {concave}', fixed = TRUE)
   expect_that(C*affine2,        is_affine())
   expect_equal(dim(C*affine2),  c(4,1))
+  
 
   expect_that(-4*convex,        is_concave())
   expect_equal(dim(4*convex),   c(10,1))

@@ -71,24 +71,27 @@ class(`+.cvx`) <- c("cvxfun")
 class(`*.cvx`) <- c("cvxfun")
 
 `*.cvx` <- `*.cvx` +
-  dcprule(x > 0 && constant, convex,           out = convex) +
-  dcprule(x < 0 && constant, convex,           out = concave) +
-  dcprule(x > 0 && constant, concave,          out = concave) +
-  dcprule(x < 0 && constant, concave,          out = convex) +
-  dcprule(constant,          affine,           out = affine) +
-  dcprule(convex,           x > 0 && constant, out = convex) +
-  dcprule(convex,           x < 0 && constant, out = concave) +
-  dcprule(concave,          x > 0 && constant, out = concave) +
-  dcprule(concave,          x < 0 && constant, out = convex) +
-  dcprule(affine,           constant,          out = affine) +
-  dcprule(constant,         constant,          out = constant)
+  dcprule(x > 0 & constant, convex,           out = convex) +
+  dcprule(x < 0 & constant, convex,           out = concave) +
+  dcprule(x > 0 & constant, concave,          out = concave) +
+  dcprule(x < 0 & constant, concave,          out = convex) +
+  dcprule(constant,         affine,           out = affine) +
+  dcprule(convex,           x > 0 & constant, out = convex) +
+  dcprule(convex,           x < 0 & constant, out = concave) +
+  dcprule(concave,          x > 0 & constant, out = concave) +
+  dcprule(concave,          x < 0 & constant, out = convex) +
+  dcprule(affine,           constant,         out = affine) +
+  dcprule(constant,         constant,         out = constant)
 
 
 
 ## e1 - e2 ##########################
-# `-.cvx` <- function(e1, e2){}
-# class(`-.cvx`) <- c("cvxfun")
-# `-.cvx` <- `^.cvx` + dcprule()
+`-.cvx` <- function(e1, e2){
+  e1 + (-1)*e2
+}
+
+class(`-.cvx`) <- c("cvxfun")
+
 
 
 
