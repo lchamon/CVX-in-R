@@ -18,7 +18,24 @@ test_that("is.scalar", {
   expect_false(is.scalar(z))
   expect_false(is.scalar(b))
   expect_false(is.scalar(t(b)))
-  expect_error(is.scalar('a'), 'numeric value')
+  expect_false(is.scalar(c(1, 2, 3)))
+  expect_error(is.scalar('a'),        'numeric value')
+  expect_error(is.scalar(c('a','b')), 'numeric value')
+})
+
+
+test_that("is.whole", {
+  x <- cvx()
+  
+  expect_true(is.whole(1))
+  expect_true(is.whole(3))
+  expect_true(is.whole(sqrt(2)/sqrt(2)))
+  expect_true(is.whole(1 + .Machine$double.eps))
+  expect_false(is.whole(1.2))
+  expect_false(is.whole(1 + 2*.Machine$double.eps^0.5))
+  
+  expect_error(is.whole('a'), 'non-numeric argument')
+  expect_error(is.whole(x),   'non-numeric argument')
 })
 
 

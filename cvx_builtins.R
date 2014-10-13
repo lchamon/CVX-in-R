@@ -94,23 +94,32 @@ class(`-.cvx`) <- c("cvxfun")
 
 
 
-
 ## x^p ##########################
-# `^.cvx` <- function(x, p){}
-# class(`^.cvx`) <- c("cvxfun")
-# `^.cvx` <- `^.cvx` + dcprule()
+`^.cvx` <- cvxfun(x, p)
 
+`^.cvx` <- `^.cvx` +
+  dcprule(affine & is.scalar(x),  constant & is.scalar(x) & x >= 1 & !(is.whole(x) & x %% 2 != 0 & x != 1), out = convex) +
+  dcprule(concave & is.scalar(x), constant & is.scalar(x) & x > 0 & x < 1,                                  out = concave)
 
 
 ## norm(p, x) ##########################
-# norm <- cvxfun(p, x)
-# norm <- norm + dcprule()
+norm <- cvxfun(x, p)
+norm <- norm +
+  dcprule(constant, constant & is.scalar(x) & x >= 1, out = constant) +
+  dcprule(affine,   constant & is.scalar(x) & x >= 1, out = convex) +
+  dcprule(convex,   constant & is.scalar(x) & x >= 1, out = convex)
 
 
 
 ## quad_over_lin(x, y) ##########################
-# norm <- cvxfun(p, x)
-# norm <- norm + dcprule(affine, affine && x > 0, out = convex)
+quad_over_lin <- cvxfun(x, y)
+quad_over_lin <- quad_over_lin +
+  dcprule(affine,   concave  & is.scalar(x), out = convex) +
+  dcprule(affine,   affine   & is.scalar(x), out = convex) +
+  dcprule(constant, concave  & is.scalar(x), out = convex) +
+  dcprule(constant, affine   & is.scalar(x), out = convex) +
+  dcprule(affine,   constant & is.scalar(x) & x > 0, out = convex) +
+  dcprule(constant, constant & is.scalar(x) & x > 0, out = constant)
 
 
 

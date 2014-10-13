@@ -5,11 +5,22 @@ is.scalar <- function(x){
     stop('A numeric value or CVX object is required.')
   }
   
-  if(is.null(dim(x)) || all(dim(x) == c(1,1))){
+  # Fix the null case assuming a column vector
+  if (is.null(dim(x))){
+    dim(x) <- c(length(as.list(x)),1)
+  }
+  
+  if(all(dim(x) == c(1,1))){
     TRUE
   } else{
     FALSE
   }
+}
+
+
+# is.whole(): is a whole number?
+is.whole <- function(x, tol = .Machine$double.eps^0.5) {
+  abs(x - round(x)) < tol
 }
 
 
