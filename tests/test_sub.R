@@ -6,7 +6,7 @@ source('../cvx_builtins.R')
 
 # Load testthat
 library(testthat)
-context("DCP rule set for addition")
+context("DCP rule set for subtraction")
 
 is_convex <- function(){
   function(x) {
@@ -98,6 +98,9 @@ test_that("DCP violations", {
 
 
 test_that("Vector case", {
+  # Skip for now, as no CVX objects are undimensional
+  skip('Dimension checking is disabled.')
+  
   affine <- cvx(10, 1, curvature = 'affine')
   convex <- cvx(10, 1, curvature = 'convex')
   concave <- cvx(10, 1, curvature = 'concave')

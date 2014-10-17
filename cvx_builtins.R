@@ -7,20 +7,21 @@
   force(e2)
 
   # Check dimensions
-  if(any(dim(e1) != dim(e2))){
-    stop('Dimensions are not compatible.')
-  }
+#   if(any(dim(e1) != dim(e2))){
+#     stop('Dimensions are not compatible.')
+#   }
   
   # Check DCP rules
   curv <- dcpcheck(fname = '+', FUN = `+.cvx`, e1, e2)
   
   # Create addition object
   # Cannot trust R with scalar dimensions, so we only get dimensions from CVX objects
-  if(is.cvx(e1)){
-    cvx(dim(e1)[1], dim(e1)[2], curvature = curv)
-  } else {
-    cvx(dim(e2)[1], dim(e2)[2], curvature = curv)
-  }
+#   if(is.cvx(e1)){
+#     cvx(dim(e1)[1], dim(e1)[2], curvature = curv)
+#   } else {
+#     cvx(dim(e2)[1], dim(e2)[2], curvature = curv)
+#   }
+  cvx(curvature = curv)
 }
 
 class(`+.cvx`) <- c("cvxfun")
@@ -50,22 +51,23 @@ class(`+.cvx`) <- c("cvxfun")
   force(e2)
   
   # Check dimensions (any() solves the scalar case which have NULL dims)
-  if(!is.scalar(e1) && !is.scalar(e2) && dim(e1)[2] != dim(e2)[1]){
-    stop('Dimensions are not compatible.')
-  }
+#   if(!is.scalar(e1) && !is.scalar(e2) && dim(e1)[2] != dim(e2)[1]){
+#     stop('Dimensions are not compatible.')
+#   }
   
   # Check DCP rules
   curv <- dcpcheck(fname = '*', FUN = `*.cvx`, e1, e2)
   
   # Create addition object
   # Cannot trust R with scalar dimensions, so we only get dimensions from CVX objects
-  if (is.scalar(e1) && is.cvx(e2)){
-    cvx(dim(e2)[1], dim(e2)[2], curvature = curv)
-  } else if (is.scalar(e2) && is.cvx(e1)){
-    cvx(dim(e1)[1], dim(e1)[2], curvature = curv)
-  } else {
-    cvx(dim(e1)[1], dim(e2)[2], curvature = curv)
-  }
+#   if (is.scalar(e1) && is.cvx(e2)){
+#     cvx(dim(e2)[1], dim(e2)[2], curvature = curv)
+#   } else if (is.scalar(e2) && is.cvx(e1)){
+#     cvx(dim(e1)[1], dim(e1)[2], curvature = curv)
+#   } else {
+#     cvx(dim(e1)[1], dim(e2)[2], curvature = curv)
+#   }
+cvx(curvature = curv)
 }
 
 class(`*.cvx`) <- c("cvxfun")
