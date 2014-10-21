@@ -9,7 +9,14 @@ is.cvxset <- function(x){
 print.cvxset <- function(x, ...){
   cat('CVX set')
   cat('\n')
-  cat(deparse(x), 'in', get_type(x), '(', dim(x), ')')
+  if (is.name(x)){
+    # Variable in set
+    cat(deparse(x), 'in', get_type(x), '(', dim(x), ')')
+    
+  } else {
+    # Clear set
+    cat(get_type(x), '(', dim(x), ')')
+  }
   cat('\n')
 }
 
@@ -35,7 +42,7 @@ get_type <- function(x) {
 
 
 `%in%.default` <- function(x, table) {
-  x %in% table
+  base::`%in%`(x, table)
 }
 
 
@@ -50,7 +57,7 @@ get_type <- function(x) {
 
 
 c.cvx <- function(...) {
-  out <- eval(substitute(alist(...)))
+  out <- list(...)
   
   if (length(out) == 1) {
     out <- substitute(...)
@@ -67,7 +74,7 @@ nonnegative <- function(dim) {
     stop('The dimension of the set must be a scalar.')
   }
   
-  structure(NULL,
+  structure(NA,
             class = 'cvxset',
             type = 'nonnegative',
             dimensions = dim)
@@ -80,7 +87,7 @@ lorentz <- function(dim) {
     stop('The dimension of the set must be a scalar.')
   }
 
-  structure(NULL,
+  structure(NA,
             class = 'cvxset',
             type = 'lorentz',
             dimensions = dim)

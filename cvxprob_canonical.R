@@ -86,14 +86,11 @@ linearize <- function(x, envir = parent.frame()) {
     vars <- lapply(x[-1], linearize, envir = envir)
     
     # Check function call
-    if (identical(x[[1]], quote(`(`))) {
-      # Call is to a parenthesis: eliminate!
-      vars[[1]]
-    } else if (identical(x[[1]], quote(`+`)) |
-                 identical(x[[1]], quote(`-`)) |
-                 identical(x[[1]], quote(`*`))) {
+    if (identical(x[[1]], quote(`+`)) |
+          identical(x[[1]], quote(`-`)) |
+          identical(x[[1]], quote(`*`))) {
       # Result is either constant or affine
-      args <- lapply(vars, `[[`, 'FUN')
+#       args <- lapply(vars, `[[`, 'FUN')
       linearize_affine(x[[1]], vars)
       
       ###### CONSTANT ####################
@@ -192,7 +189,7 @@ linearize_nonlinear <- function(f, vars) {
 shift_varnames <- function(expressions, N) {
   n1 <- length(expressions)
   
-  if (N != 0 && n1 != 0) {
+  if (N > 0 & n1 > 1) {
     var_old <- names(expressions)
     
     # Get dummy variables of the form 'tn'
