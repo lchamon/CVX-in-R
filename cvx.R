@@ -13,7 +13,7 @@ cvx <- function(rows = 1, cols = 1, curvature = 'affine', range = NULL) {
 #     stop("Curvature must be affine, convex, or concave")
 #   }
   
-  structure(NULL,
+  structure(NA,
             class = 'cvx',
             curvature = curvature,
             range = range,
@@ -28,7 +28,7 @@ is.cvx <- function(x){
 
 
 # print.cvx(): formatted description of CVX object
-print.cvx <- function(x){
+print.cvx <- function(x, ...){
   cat('CVX variable (', dim(x)[1], ' x ', dim(x)[2], ')')
   cat('\n')
   cat('Curvature:', get_curvature(x))

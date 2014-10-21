@@ -1,5 +1,5 @@
 # Source files
-source('../aux_functions.R')
+source('../utils.R')
 source('../cvx.R')
 source('../cvxfun.R')
 source('../cvx_builtins.R')
@@ -34,6 +34,20 @@ test_that("is.cvxprob", {
   expect_false(is.cvxprob('prob1'))
   expect_false(is.cvxprob(1))
 })
+
+
+test_that("type", {
+  prob1 <- minimize()
+  prob2 <- minimize() + subject_to(x >= 0)
+  prob3 <- minimize()
+  attr(prob3, 'type') <- 'Gotcha!'
+  
+  expect_identical(type(prob1),              'minimization')
+  expect_identical(type(prob2),              'minimization')
+  expect_error(type('prob1'),                'retrieve the type of a CVX problem')
+  expect_error(capture.output(print(prob3)), 'not a supported CVX problem type')
+})
+
 
 test_that("objective", {
   x <- cvx()

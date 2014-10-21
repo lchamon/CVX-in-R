@@ -4,24 +4,29 @@
 `+.cvx` <- function(e1, e2){
   # Ensure promises exist
   force(e1)
-  force(e2)
-
-  # Check dimensions
-#   if(any(dim(e1) != dim(e2))){
-#     stop('Dimensions are not compatible.')
-#   }
   
-  # Check DCP rules
-  curv <- dcpcheck(fname = '+', FUN = `+.cvx`, e1, e2)
-  
-  # Create addition object
-  # Cannot trust R with scalar dimensions, so we only get dimensions from CVX objects
-#   if(is.cvx(e1)){
-#     cvx(dim(e1)[1], dim(e1)[2], curvature = curv)
-#   } else {
-#     cvx(dim(e2)[1], dim(e2)[2], curvature = curv)
-#   }
-  cvx(curvature = curv)
+  if (missing(e2)) {
+    e1
+  } else {
+    force(e2)
+    
+    # Check dimensions
+    #   if(any(dim(e1) != dim(e2))){
+    #     stop('Dimensions are not compatible.')
+    #   }
+    
+    # Check DCP rules
+    curv <- dcpcheck(fname = '+', FUN = `+.cvx`, e1, e2)
+    
+    # Create addition object
+    # Cannot trust R with scalar dimensions, so we only get dimensions from CVX objects
+    #   if(is.cvx(e1)){
+    #     cvx(dim(e1)[1], dim(e1)[2], curvature = curv)
+    #   } else {
+    #     cvx(dim(e2)[1], dim(e2)[2], curvature = curv)
+    #   }
+    cvx(curvature = curv)
+  }
 }
 
 class(`+.cvx`) <- c("cvxfun")
@@ -67,7 +72,7 @@ class(`+.cvx`) <- c("cvxfun")
 #   } else {
 #     cvx(dim(e1)[1], dim(e2)[2], curvature = curv)
 #   }
-cvx(curvature = curv)
+  cvx(curvature = curv)
 }
 
 class(`*.cvx`) <- c("cvxfun")
@@ -89,7 +94,11 @@ class(`*.cvx`) <- c("cvxfun")
 
 ## e1 - e2 ##########################
 `-.cvx` <- function(e1, e2){
-  e1 + (-1)*e2
+  if (missing(e2)) {
+    (-1)*e1
+  } else {
+    e1 + (-1)*e2
+  }
 }
 
 class(`-.cvx`) <- c("cvxfun")
@@ -97,16 +106,26 @@ class(`-.cvx`) <- c("cvxfun")
 
 
 ## x^p ##########################
-`^.cvx` <- cvxfun(x, p)
+# `^.cvx` <- cvxfun(x, p)
+# 
+# `^.cvx` <- `^.cvx` +
+#   dcprule(affine & is.scalar(x),  constant & is.scalar(x) & x >= 1 & !(is.whole(x) & x %% 2 != 0 & x != 1), out = convex) +
+#   dcprule(concave & is.scalar(x), constant & is.scalar(x) & x > 0 & x < 1,                                  out = concave)
 
-`^.cvx` <- `^.cvx` +
-  dcprule(affine & is.scalar(x),  constant & is.scalar(x) & x >= 1 & !(is.whole(x) & x %% 2 != 0 & x != 1), out = convex) +
-  dcprule(concave & is.scalar(x), constant & is.scalar(x) & x > 0 & x < 1,                                  out = concave)
+
+## square_pos(x) ##########################
+square_pos <- cvxfun(x)
+
+square_pos <- square_pos +
+  curvature(convex) +
+  dcprule(affine & is.scalar(x), out = convex) +
+  dcprule(convex & is.scalar(x), out = concave)
 
 
 ## norm(p, x) ##########################
 norm <- cvxfun(x, p)
 norm <- norm +
+  curvature(convex) +
   dcprule(constant, constant & is.scalar(x) & x >= 1, out = constant) +
   dcprule(affine,   constant & is.scalar(x) & x >= 1, out = convex) +
   dcprule(convex,   constant & is.scalar(x) & x >= 1, out = convex)
@@ -116,6 +135,7 @@ norm <- norm +
 ## quad_over_lin(x, y) ##########################
 quad_over_lin <- cvxfun(x, y)
 quad_over_lin <- quad_over_lin +
+  curvature(convex) +
   dcprule(affine,   concave  & is.scalar(x), out = convex) +
   dcprule(affine,   affine   & is.scalar(x), out = convex) +
   dcprule(constant, concave  & is.scalar(x), out = convex) +

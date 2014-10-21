@@ -1,5 +1,5 @@
 # Source files
-source('../aux_functions.R')
+source('../utils.R')
 source('../cvx.R')
 
 # Load testthat

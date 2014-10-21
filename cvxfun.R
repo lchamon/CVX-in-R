@@ -75,7 +75,7 @@ get_ruleset <- function(x) {
 
 
 # print.cvxfun(): formatted printing of the definition of a CVX function
-print.cvxfun <- function(x){
+print.cvxfun <- function(x, ...){
   cat("CVX function")
   cat("\n")
   cat("Arguments:",
@@ -125,7 +125,7 @@ print.cvxfun <- function(x){
 }
 
 
-# curvature() [TODO]
+# [TODO] curvature()
 curvature <- function(x) {
   objname <- deparse(substitute(x))
   
@@ -136,7 +136,7 @@ curvature <- function(x) {
 }
 
 
-# monotonicity() [TODO]
+# [TODO] monotonicity()
 monotonicity <- function(x){
   objname <- deparse(substitute(x))
   
@@ -148,9 +148,20 @@ monotonicity <- function(x){
 
 
 # Add stuff to CVX functions
-add_curvature <- function(e1,e2)      { attr(e1, "curvature") <- unclass(e2); e1 }
-add_monotonicity <- function(e1,e2)   { attr(e1, "monotonicity") <- unclass(e2); e1 }
 add_range <- function(e1,e2)          { attr(e1, "range") <- unclass(e2); e1 }
+
+# [TODO]
+# As soon as a curvature is added, the DCP rules related to
+# affine inputs should also be added. Then, the monotonicity
+# needs to be checked to add rules relating to other input
+# curvatures.
+add_curvature <- function(e1,e2)      { attr(e1, "curvature") <- unclass(e2); e1 }
+
+# [TODO]
+# As soon as a monotonicity is added, the curvature of the
+# function needs to be checked to add rules relating to
+# arbitrary input curvatures.
+add_monotonicity <- function(e1,e2)   { attr(e1, "monotonicity") <- unclass(e2); e1 }
 
 add_dcprule <- function(e1, e2) {
   nargs_e1 <- length(formals(e1))
@@ -219,11 +230,7 @@ print.dcprule <- function(r){
     stop("Rules must have the same length to be compared.")
   }
   
-  for (n in seq_along(r1)){
-    if(r1[[n]] != r2[[n]]) return(FALSE)
-  }
-  
-  TRUE
+  identical(r1, r2)
 }
 
 

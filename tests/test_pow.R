@@ -1,5 +1,5 @@
 # Source files
-source('../aux_functions.R')
+source('../utils.R')
 source('../cvx.R')
 source('../cvxfun.R')
 source('../cvx_builtins.R')
@@ -45,12 +45,16 @@ is_constant <- function(){
 ### Start of test ###
 
 test_that("General properties", {
+  skip('Arbitrary exponentiation support has been suspended.')
+  
   expect_is(`^.cvx`, 'cvxfun')
   expect_equal(length(formals(`^.cvx`)), 2)
 })
 
 
 test_that("Convex expressions", {
+  skip('Arbitrary exponentiation support has been suspended.')
+  
   affine <- cvx(curvature = 'affine')
   convex <- cvx(curvature = 'convex')
   concave <- cvx(curvature = 'concave')
@@ -68,6 +72,8 @@ test_that("Convex expressions", {
 
 
 test_that("Concave expressions", {
+  skip('Arbitrary exponentiation support has been suspended.')
+  
   affine <- cvx(curvature = 'affine')
   convex <- cvx(curvature = 'convex')
   concave <- cvx(curvature = 'concave')
@@ -81,6 +87,8 @@ test_that("Concave expressions", {
 
 
 test_that("DCP violations", {
+  skip('Arbitrary exponentiation support has been suspended.')
+  
   affine <- cvx(curvature = 'affine')
   convex <- cvx(curvature = 'convex')
   concave <- cvx(curvature = 'concave')
@@ -105,6 +113,8 @@ test_that("DCP violations", {
 
 
 test_that("Vector case", {
+  skip('Arbitrary exponentiation support has been suspended.')
+  
   affine <- cvx(10, 1, curvature = 'affine')
   convex <- cvx(10, 1, curvature = 'convex')
   concave <- cvx(10, 1, curvature = 'concave')

@@ -1,4 +1,6 @@
 ## CVX problems ###################################
+
+# minimize(): create a minimization CVX problem
 minimize <- function(objective = 0){
   obj.out <- eval.parent(objective)
   
@@ -13,13 +15,24 @@ minimize <- function(objective = 0){
   structure(list(objective = substitute(objective),
                  constraints = NULL,
                  cones = NULL),
-            class = 'cvxprob')
+            class = 'cvxprob',
+            type = 'minimization')
 }
 
 
 # is.cvxprob(): is a CVX function?
 is.cvxprob <- function(x){
   inherits(x, 'cvxprob')
+}
+
+
+# type(): get the type of a CVX problem
+type <- function(x){
+  if (!is.cvxprob(x)) {
+    stop('Can only retrieve the type of a CVX problem.')
+  }
+  
+  attr(x, 'type')
 }
 
 
@@ -33,6 +46,19 @@ objective <- function(cvxprob){
 }
 
 
+# objective() <- : set CVX problem objective (internal)
+`objective<-` <- function(cvxprob, value) {
+  if (is.numeric(value)) {
+    obj <- value
+  } else {
+    obj <- substitute(value)
+  }
+  
+  cvxprob$objective <- value
+  cvxprob
+}
+
+
 # constraints(): get CVX problem constraints
 constraints <- function(cvxprob){
   if (!is.cvxprob(cvxprob)){
@@ -40,6 +66,17 @@ constraints <- function(cvxprob){
   }
   
   cvxprob$constraints
+}
+
+
+# constraints() <- : set CVX problem constraints (internal)
+`constraints<-` <- function(cvxprob, value) {
+  if (!is.list(value)) {
+    stop('CVX problems constraints must be a list.')
+  }
+  
+  cvxprob$constraints <- value
+  cvxprob
 }
 
 
@@ -54,11 +91,20 @@ cones <- function(cvxprob){
 
 
 # print.cvxfun(): formatted printing of the definition of a CVX function
-print.cvxprob <- function(cvxprob){
+print.cvxprob <- function(cvxprob, ...){
   cat("CVX problem")
   cat("\n")
   
-  cat("minimize\t", deparse(objective(cvxprob)))
+  if (type(cvxprob) == 'minimization') {
+    cat("minimize\t")
+  } else if (type(cvxprob) == 'maximization') {
+    cat("maximize\t")
+  } else {
+    stop(type(cvxprob), 'is not a supported CVX problem type.')
+  }
+  
+  
+  cat(deparse(objective(cvxprob)))
   cat("\n")
   
   if(!is.null(constraints(cvxprob))){
@@ -95,15 +141,6 @@ subject_to <- function(constraint) {
 
 # %st%: shortcut for adding constraints to CVX problems
 # [TODO]
-`%st%` <- function(cvxprob, constraint){
-  stop('Empty function...')
-}
-
-
-## Canonical CVX problems ###################################
-# canonical(): returns a canonicalized CVX problem
-canonical <- function(cvxprob){
-  # Return a canonical CVX problem
-}
-
-
+# `%st%` <- function(cvxprob, constraint){
+#   stop('Empty function...')
+# }
