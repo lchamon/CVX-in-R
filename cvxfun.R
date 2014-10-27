@@ -74,6 +74,20 @@ get_ruleset <- function(x) {
 }
 
 
+# get_epigraph(): returns the epigraph implementation a CVX function
+get_epigraph <- function(x) {
+  if (is.cvxfun(x)){
+    if (!is.null(attr(x, "epigraph"))){
+      attr(x, "epigraph")
+    } else {
+      stop("The CXV functions has no epigraph implementation.", call. = FALSE)
+    }
+  } else {
+    stop("Only CXV functions have epigraph implementation.")
+  }
+}
+
+
 # print.cvxfun(): formatted printing of the definition of a CVX function
 print.cvxfun <- function(x, ...){
   cat("CVX function")
@@ -118,6 +132,8 @@ print.cvxfun <- function(x, ...){
   else if (inherits(e2, 'cvx_monotonicity')) add_monotonicity(e1, e2)
   # Add range
   else if (inherits(e2, 'range'))            add_range(e1, e2)
+  # Add epigraph implementation
+  else if (inherits(e2, 'epigraph'))         add_epigraph(e1, e2)
   # Add DCP rule
   else if (inherits(e2, 'dcprule'))          add_dcprule(e1, e2)
   # Unsupported operation
@@ -146,6 +162,12 @@ monotonicity <- function(x){
   structure(objname, class = 'cvx_monotonicity')
 }
 
+# [TODO] epigraph()
+epigraph <- function(x){
+  epi <- substitute(x)
+  structure(epi, class = 'epigraph')
+}
+
 
 # Add stuff to CVX functions
 add_range <- function(e1,e2)          { attr(e1, "range") <- unclass(e2); e1 }
@@ -162,6 +184,18 @@ add_curvature <- function(e1,e2)      { attr(e1, "curvature") <- unclass(e2); e1
 # function needs to be checked to add rules relating to
 # arbitrary input curvatures.
 add_monotonicity <- function(e1,e2)   { attr(e1, "monotonicity") <- unclass(e2); e1 }
+
+add_epigraph <- function(e1, e2) {
+  r1 <- cvx()
+  prob <- eval(e2)
+  
+  if (!is.cvxprob(prob)) {
+    stop("Epigraph implementations must be CVX problems.")
+  }
+  
+  attr(e1, "epigraph") <- prob
+  e1
+}
 
 add_dcprule <- function(e1, e2) {
   nargs_e1 <- length(formals(e1))

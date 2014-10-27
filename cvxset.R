@@ -56,6 +56,7 @@ get_type <- function(x) {
 }
 
 
+# c(): concatenate vectors for sets
 c.cvx <- function(...) {
   out <- list(...)
   
@@ -69,10 +70,10 @@ c.cvx <- function(...) {
 
 ## Built in sets ###################################
 # Nonnegative cone
-nonnegative <- function(dim) {
-  if (!is.scalar(dim)){
-    stop('The dimension of the set must be a scalar.')
-  }
+nonnegative <- function(dim = NA) {
+#   if (!is.scalar(dim)){
+#     stop('The dimension of the set must be a scalar.')
+#   }
   
   structure(NA,
             class = 'cvxset',
@@ -82,10 +83,10 @@ nonnegative <- function(dim) {
 
 
 # Second-order cone (Lorentz cone)
-lorentz <- function(dim) {
-  if (!is.scalar(dim)){
-    stop('The dimension of the set must be a scalar.')
-  }
+lorentz <- function(dim = NA) {
+#   if (!is.scalar(dim)){
+#     stop('The dimension of the set must be a scalar.')
+#   }
 
   structure(NA,
             class = 'cvxset',

@@ -48,6 +48,8 @@ class(`+.cvx`) <- c("cvxfun")
   dcprule(concave,  affine,   out = concave)
 
 
+# sum()?!
+
 
 ## e1 * e2 ##########################
 `*.cvx` <- function(e1, e2){
@@ -119,16 +121,25 @@ square_pos <- cvxfun(x)
 square_pos <- square_pos +
   curvature(convex) +
   dcprule(affine & is.scalar(x), out = convex) +
-  dcprule(convex & is.scalar(x), out = concave)
+  dcprule(convex & is.scalar(x), out = convex) +
+  epigraph(minimize(r1) + subject_to(quad_over_lin(x,1) <= r1))
 
 
-## norm(p, x) ##########################
+## norm(x, p) ##########################
 norm <- cvxfun(x, p)
 norm <- norm +
   curvature(convex) +
   dcprule(constant, constant & is.scalar(x) & x >= 1, out = constant) +
   dcprule(affine,   constant & is.scalar(x) & x >= 1, out = convex) +
   dcprule(convex,   constant & is.scalar(x) & x >= 1, out = convex)
+
+norm2 <- cvxfun(x)
+norm2 <- norm2 +
+  curvature(convex) +
+  dcprule(constant, out = constant) +
+  dcprule(affine,   out = convex) +
+  dcprule(convex,   out = convex) +
+  epigraph(minimize(r1) + subject_to( c(r1, x) %in% lorentz() ))
 
 
 
@@ -141,7 +152,20 @@ quad_over_lin <- quad_over_lin +
   dcprule(constant, concave  & is.scalar(x), out = convex) +
   dcprule(constant, affine   & is.scalar(x), out = convex) +
   dcprule(affine,   constant & is.scalar(x) & x > 0, out = convex) +
-  dcprule(constant, constant & is.scalar(x) & x > 0, out = constant)
+  dcprule(constant, constant & is.scalar(x) & x > 0, out = constant) +
+  epigraph(minimize(r1) +
+             subject_to(r2 == y/2 + r1/2) +
+             subject_to(r3 == y/2 - r1/2) +
+             subject_to( c(r2, r3, x) %in% lorentz() ) +
+             subject_to( y >= 0 ))
 
 
-
+## abs(x) ##########################
+abs <- cvxfun(x)
+abs <- abs +
+  curvature(convex) +
+  dcprule(constant & is.scalar(x), out = constant) +
+  dcprule(affine & is.scalar(x),   out = convex) +
+  dcprule(convex & is.scalar(x),   out = convex) +
+  epigraph(minimize(r1) +
+             subject_to( c(r1,x) %in% lorentz() ))

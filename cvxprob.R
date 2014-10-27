@@ -13,8 +13,8 @@ minimize <- function(objective = 0){
   }
   
   structure(list(objective = substitute(objective),
-                 constraints = NULL,
-                 cones = NULL),
+                 constraints = list(),
+                 cones = list()),
             class = 'cvxprob',
             type = 'minimization')
 }
@@ -83,10 +83,21 @@ constraints <- function(cvxprob){
 # cones(): get CVX problem cones constraints
 cones <- function(cvxprob){
   if (!is.cvxprob(cvxprob)){
-    stop('The object is not a CVX problem.', call. = FALSE)
+    stop('The object is not a CVX problem.')
   }
   
   cvxprob$cones
+}
+
+
+# cones() <- : set CVX problem cone constraints (internal)
+`cones<-` <- function(cvxprob, value) {
+  if (!is.list(value)) {
+    stop('CVX problems cone constraints must be a list.')
+  }
+  
+  cvxprob$cones <- value
+  cvxprob
 }
 
 
@@ -100,19 +111,24 @@ print.cvxprob <- function(cvxprob, ...){
   } else if (type(cvxprob) == 'maximization') {
     cat("maximize\t")
   } else {
-    stop(type(cvxprob), 'is not a supported CVX problem type.')
+    stop(type(cvxprob), ' is not a supported CVX problem type.')
   }
   
   
   cat(deparse(objective(cvxprob)))
   cat("\n")
   
-  if(!is.null(constraints(cvxprob))){
+  if (length(constraints(cvxprob)) > 0 | length(cones(cvxprob)) > 0) {
     cat("subject to")
     cat("\n")
     
     for (constraint in constraints(cvxprob)){
       cat('\t', deparse(constraint))
+      cat("\n")
+    }
+    
+    for (cone in cones(cvxprob)){
+      cat('\t', deparse(cone))
       cat("\n")
     }
   }
@@ -123,20 +139,60 @@ print.cvxprob <- function(cvxprob, ...){
 `+.cvxprob` <- function(cvxprob, constraint){
   e2name <- deparse(substitute(constraint))
   
-  # Add curvature
   if (inherits(constraint, 'cvx_constraint')) {
+    # Add (in)equality constraint
     cvxprob$constraints <- c(cvxprob$constraints, unclass(constraint))
-    cvxprob
+  } else if (inherits(constraint, 'cvx_cone')) {
+    # Add set constraint
+    cvxprob$cones <- c(cvxprob$cones, unclass(constraint))
   }
-  # Unsupported operation
-  else stop("Don't know how to add ", e2name, " to a CVX problem.", call. = FALSE)
+  else {
+    # Unsupported operation
+    stop("Don't know how to add ", e2name, " to a CVX problem.", call. = FALSE)
+  }
+  
+  cvxprob
 }
 
 
 # subject_to(): create a CVX constraint
 subject_to <- function(constraint) {
-  structure(substitute(constraint), class = 'cvx_constraint')
+  expression <- substitute(constraint)
+  
+  if (identical(expression[[1]], quote(`>=`)) |
+               identical(expression[[1]], quote(`==`)) |
+               identical(expression[[1]], quote(`<=`)) |
+               identical(expression[[1]], quote(`%in%`))) {
+    # (In)equality and set constraints
+    structure(expression, class = 'cvx_constraint')
+    
+  } else if (identical(expression[[1]], quote(`>`)) |
+               identical(expression[[1]], quote(`<`))) {
+    # Strict inequalities
+    stop("Strict inequalities are not supported by CVX.", call. = FALSE)
+    
+  } else {
+    stop(deparse(constraint), " is not a valid constraint.", call. = FALSE)
+    
+  }
 }
+# subject_to <- function(constraint) {
+#   expression <- substitute(constraint)
+#   
+#   if (identical(expression[[1]], quote(`%in%`))) {
+#     # Set constraints
+#     structure(expression, class = 'cvx_cone')
+#   } else if (identical(expression[[1]], quote(`>=`)) |
+#                identical(expression[[1]], quote(`==`)) |
+#                identical(expression[[1]], quote(`<=`))) {
+#     # (In)equality constraints
+#     structure(expression, class = 'cvx_constraint')
+#   } else if (identical(expression[[1]], quote(`>`)) |
+#                identical(expression[[1]], quote(`<`))) {
+#     # Strict inequalities
+#     stop("Strict inequalities are not supported by CVX.")
+#   }
+# }
 
 
 # %st%: shortcut for adding constraints to CVX problems
