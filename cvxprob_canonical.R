@@ -16,58 +16,16 @@ canonical <- function(cvxprob){
   }
   
   ### Step 1: Linearization (relaxed Smith form) ###########
+  cvxprob <- linearize(cvxprob)
   
-  #### Step 1.1: Linearize objetive
-  lin.objective <- linearize(objective(cvxprob))
-  
-  #### Step 1.2: Linearize constraints
-  if (length(constraints(cvxprob)) > 0) {
-    # Linearize LHS and RHS of each constraint individually (using linearize)
-    # and then join them back (using linearize_affine)
-    lin.constraints <- lapply(constraints(cvxprob),
-                              function(constraint){
-                                linearize_affine(constraint[[1]],
-                                                 lapply(constraint[-1], linearize))
-                              })
-    
-    # Join all results avoiding name clashes
-    lin.constraints <- Reduce(function(x,y) c(x, shift_varnames(y, sum(sapply(x,length)-1))),
-                              lin.constraints[-1],
-                              init = lin.constraints[[1]])
-    
-    # Rename to avoid name clashes with the new constraints
-    # from the linearization of the objective
-    lin.constraints <- shift_varnames(lin.constraints, length(lin.objective)-1)
-    
-  } else {
-    # Unconstrained problem
-    lin.constraints <- list()
-  }
-  
-  #### Step 1.3: Construct linearized problem
-  objective(cvxprob) <- lin.objective$FUN
-  constraints(cvxprob) <- c(lin.objective[setdiff(names(lin.objective), 'FUN')],
-                            unname(lin.constraints))
-  
-
   ### Step 2: Graph implementations ###########
-  #### Step 2.1: Graph implementations of nonlinearities
-  constraints(cvxprob) <- graph_implementation(constraints(cvxprob))
+  cvxprob <- graph_implementation(cvxprob)
   
-  #### Step 2.2: Graph implementations of inequalities
-
+  ### Step 3: Canonicalize (in)equalities ###########
+  #### Step 3.1: Canonicalize RHS (Ax = b and x >= 0)
+  cvxprob <- canonicalize_rhs(cvxprob)
   
-  ### Step 3: Canonicalize RHS ###########
-  # Ax = b and x >= 0
-  if (length(constraints(cvxprob)) > 0) {
-    constraints(cvxprob) <- lapply(constraints(cvxprob), canonicalize_rhs)
-  }
-  
-  # Eliminate NULL resulting from trivial constraints
-  constraints(cvxprob)[sapply(constraints(cvxprob), is.null)] <- NULL
-  
-
-  ### Step 4: Add slack variables ###########
+#   #### Step 3.2: Add slack variable
 #   if (length(constraints(cvxprob)) > 0) {
 #     constraints(cvxprob) <- add_slack(constraints(cvxprob))
 #   }
@@ -83,8 +41,50 @@ canonical <- function(cvxprob){
 # canonical(prob)
 
 
-# linearize(): linearize an expression by creating new dummy constraints
-linearize <- function(x, envir = parent.frame()) {
+linearize <- function(cvxprob){
+  #### Step 1: Linearize objetive
+  lin.objective <- cvx_linearize(objective(cvxprob))
+  
+  #### Step 2: Linearize constraints
+  if (length(constraints(cvxprob)) > 0) {
+    # Linearize LHS and RHS of each constraint individually (using linearize)
+    # and then join them back (using cvx_linearize_affine)
+    lin.constraints <- lapply(constraints(cvxprob),
+                              function(constraint){
+                                cvx_linearize_affine(constraint[[1]],
+                                                 lapply(constraint[-1], cvx_linearize))
+                              })
+    
+    # Join all results avoiding name clashes
+    lin.constraints <- Reduce(function(x,y) c(x, shift_vars(y,
+                                                            length(get_vars(x, 't\\d')),
+                                                            reset = FALSE)),
+                              lin.constraints[-1],
+                              init = lin.constraints[[1]])
+    
+    # Rename to avoid name clashes with the new constraints from the
+    # linearization of the objective
+    lin.constraints <- shift_vars(lin.constraints,
+                                  length(get_vars(lin.objective, 't\\d')),
+                                  reset = FALSE)
+    
+  } else {
+    # Unconstrained problem
+    lin.constraints <- list()
+  }
+  
+  #### Step 3: Construct linearized problem
+  objective(cvxprob) <- lin.objective$FUN
+  lin.objective$FUN <- NULL
+  constraints(cvxprob) <- c(lin.objective,
+                            unname(lin.constraints))
+  
+  cvxprob
+}
+
+
+# cvx_linearize(): linearize an expression by creating new dummy constraints
+cvx_linearize <- function(x, envir = parent.frame()) {
   if (is.atomic(x)) {
     # Atomic constant: return value
     list(FUN = x)
@@ -94,25 +94,19 @@ linearize <- function(x, envir = parent.frame()) {
     list(FUN = x)
     
   } else if (is.call(x)) {
-    # Call to function: call linearize recursively
-    vars <- lapply(x[-1], linearize, envir = envir)
+    # Call to function: call cvx_linearize recursively
+    vars <- lapply(as.list(x[-1]), cvx_linearize, envir = envir)
     
     # Check function call
     if (identical(x[[1]], quote(`+`)) |
           identical(x[[1]], quote(`-`)) |
           identical(x[[1]], quote(`*`))) {
       # Result is either constant or affine
-#       args <- lapply(vars, `[[`, 'FUN')
-      linearize_affine(x[[1]], vars)
-      
-      ###### CONSTANT ####################
-#       if (all(sapply(args, is.numeric))) linearize_constant(out)
-      ###### AFFINE ####################
-#       else linearize_affine(x[[1]], vars)
+      cvx_linearize_affine(x[[1]], vars)
       
     } else {
       ###### NONLINEAR ####################
-      linearize_nonlinear(x[[1]], vars)
+      cvx_linearize_nonlinear(x[[1]], vars)
     }
     
   } else if (is.pairlist(x)) {
@@ -126,16 +120,12 @@ linearize <- function(x, envir = parent.frame()) {
 }
 
 
-# linearize_constant(): linearize a constant expression
-# linearize_constant <- function(out) {
-#   list(FUN = out)
-# }
-
-
-# linearize_affine(): linearize an affine expression
-linearize_affine <- function(f, vars){
+# cvx_linearize_affine(): linearize an affine expression
+cvx_linearize_affine <- function(f, vars){
   # Update dummies names (if any) so that there is no clash during union
-  vars <- Reduce(function(x,y) c(x, list(shift_varnames(y, sum(sapply(x,length)-1)))),
+  vars <- Reduce(function(x,y) c(x, list(shift_vars(y,
+                                                    length(get_vars(x, 't\\d')),
+                                                    reset = FALSE))),
                  vars[-1],
                  init = list(vars[[1]]))
   
@@ -143,28 +133,57 @@ linearize_affine <- function(f, vars){
   out_call <- as.call(c(f, lapply(vars, `[[`, 'FUN')))
   
   # Get and join dummy variables
-  dummies <- lapply(vars, function(x) x[setdiff(names(x), 'FUN')])
+  dummies <- lapply(vars, function(x) { x[['FUN']] <- NULL; x })
   dummies <- Reduce(c, dummies)
+  dummies[sapply(dummies, is.null)] <- NULL
   
   # Mount expression
   c(dummies, FUN = out_call)
 }
 
 
-# linearize_nonlinear(): linearize a nonlinear expression
-linearize_nonlinear <- function(f, vars) {
-  # Make nonlinearity atomic, i.e., create a new dummy variable
-  # unless the argument is a constant or a single variable
+# cvx_linearize_nonlinear(): linearize a nonlinear expression
+cvx_linearize_nonlinear <- function(f, vars) {
+  # Make nonlinearities atomic
   for (n in seq_along(vars)) {
+    # Create a new dummy variable unless the argument
+    # is a constant or a single variable
     if (length(vars[[n]]$FUN) > 1) {
-      vars[[n]] <- shift_varnames(vars[[n]], 1)
-      vars[[n]] <- c(t1 = substitute(t1 == x, list(x = vars[[n]]$FUN)), vars[[n]])
+      vars[[n]] <- shift_vars(vars[[n]], 1, reset = FALSE)
+      vars[[n]] <- c(substitute(t1 == x, list(x = vars[[n]]$FUN)), vars[[n]])
       vars[[n]]$FUN <- quote(t1)
     }
+    
+    # If the argument is part of an inequality,
+    # create new dummy equality constraint
+    arg <- vars[[n]]$FUN
+    
+    if (!is.numeric(arg)) {
+      dummies <- vars[[n]]
+      dummies$FUN <- NULL
+      
+      # Check if the argument to the upper level function shows up in any of the
+      # inequality constraints 
+      repeated_var <- sapply(dummies,
+                             function(x){
+                               !identical(x[[1]], quote(`==`)) &&
+                                 lapply(arg, get_vars) %in% get_vars(x)
+                             })
+      
+      if (any(repeated_var)) {
+        vars[[n]]$FUN <- shift_vars(list(arg), 1, reset = FALSE)[[1]]
+        vars[[n]] <- c(substitute(told == tnew,
+                                  list(told = arg, tnew = vars[[n]]$FUN)),
+                       vars[[n]])
+      }
+    }
+
   }
   
   # Update dummies names so that there is no clash during union
-  vars <- Reduce(function(x,y) c(x, list(shift_varnames(y, sum(sapply(x,length)-1)))),
+  vars <- Reduce(function(x,y) c(x, list(shift_vars(y,
+                                                    length(get_vars(x, 't\\d')),
+                                                    reset = FALSE))),
                  vars[-1],
                  init = list(vars[[1]]))
   
@@ -172,11 +191,12 @@ linearize_nonlinear <- function(f, vars) {
   out_call <- as.call(c(f, lapply(vars, `[[`, 'FUN')))
   
   # Get and join dummy variables
-  dummies <- lapply(vars, function(x) x[setdiff(names(x), 'FUN')])
+  dummies <- lapply(vars, function(x) { x[['FUN']] <- NULL; x })
   dummies <- Reduce(c, dummies)
+  dummies[sapply(dummies, is.null)] <- NULL
   
   # Create a new epigraph variable for nonlinear atom
-  epi_var <- paste0('t', length(dummies)+1)
+  epi_var <- paste0('t', length(get_vars(dummies, 't\\d'))+1)
   
   # Get the curvature of the function
   f_curvature <- get_curvature(match.fun(f))
@@ -184,12 +204,12 @@ linearize_nonlinear <- function(f, vars) {
   if (f_curvature == 'convex') {
     # Convex: f <= t
     out_call <- as.call(c(quote(`<=`), out_call, as.name(epi_var)))
-    c(dummies, setNames(list(out_call), epi_var), FUN = as.name(epi_var))
+    c(dummies, list(out_call), FUN = as.name(epi_var))
     
   } else if (f_curvature == 'concave') {
     # Concave: f >= t
     out_call <- as.call(c(quote(`>=`), out_call, as.name(epi_var)))
-    c(dummies, setNames(list(out_call), epi_var), FUN = as.name(epi_var))
+    c(dummies, list(out_call), FUN = as.name(epi_var))
     
   } else {
     stop("Can't linearize ", f_curvature, " functions.")
@@ -197,174 +217,18 @@ linearize_nonlinear <- function(f, vars) {
 }
 
 
-# shift_varnames(): 
-shift_varnames <- function(expressions, N) {
-  n1 <- length(expressions)
+# graph_implementation(): implement nonlinearities as epigraph CVX problems
+graph_implementation <- function(cvxprob) {
+  # Get problem constraints
+  constraints <- constraints(cvxprob)
   
-  if (N > 0 & n1 > 1) {
-    var_old <- names(expressions)
-    
-    # Get dummy variables of the form 'tn'
-    dummy_var <- grepl('t\\d', var_old)
-    
-    # Generate new names: 'tn' -> 't(n+N)'
-    var_new <- var_old
-    var_new[dummy_var] <- paste0('t', as.numeric(gsub('t', '', var_new[dummy_var])) + N)
-    
-    # Change the variable names iteratively to avoid clashes
-    while (!all(var_new %in% names(expressions))) {
-      safe_to_change <- !(var_new %in% names(expressions))
-      
-      substitutions <- setNames(lapply(as.list(var_new[safe_to_change]), as.name), var_old[safe_to_change])
-      expressions <- lapply(expressions, subs_q, env = substitutions)
-      names(expressions)[safe_to_change] <- var_new[safe_to_change]
-    }
-  }
-  
-  expressions
-}
-
-
-
-canonicalize_rhs <- function(constraint) {
-  rel <- constraint[[1]]
-  lhs <- constraint[[2]]
-  rhs <- constraint[[3]]
-  
-  if (is.numeric(lhs) & is.numeric(rhs)) {
-    # Check if constraint is trivially true...
-    if (eval(constraint)) {
-      NULL
-    } else {
-      stop("Constraint ", deparse(constraint), " cannot be satisfied.", call. = FALSE)
-    }
-  } else if (identical(rel, quote(`<=`))) {
-    # <=
-    if (lhs == 0) {
-      # Already canonical
-      substitute(rhs >= 0, list(rhs = rhs))
-      
-    } else if (rhs == 0) {
-      # Almost canonical, invert everything
-      if (!grepl('[+-]', deparse(lhs))) {
-        substitute(-lhs >= 0, list(lhs = lhs))
-      } else {
-        stop('Constraint ', deparse(constraint), 'is too complicated for parser.')
-      }
-      
-    } else {
-      # Pull everything to the right and switch inequality
-      if (!grepl('[+-]', deparse(lhs))) {
-        substitute(rhs - lhs >= 0, list(lhs = lhs, rhs = rhs))
-      } else {
-        stop('Constraint ', deparse(constraint), 'is too complicated for parser.')
-      }
-    }
-    
-  } else if (identical(rel, quote(`>=`))) {
-    # >= 
-    if (rhs == 0) {
-      # Already canonical
-      constraint
-      
-    } else if (lhs == 0) {
-      # Almost canonical, invert everything
-      if (!grepl('[+-]', deparse(rhs))) {
-        substitute(-rhs >= 0, list(rhs = rhs))
-      } else {
-        stop('Constraint ', deparse(constraint), 'is too complicated for parser.')
-      }
-      
-    } else {
-      # Pull everything to the left
-      if (!grepl('[+-]', deparse(rhs))) {
-        substitute(lhs - rhs >= 0, list(lhs = lhs, rhs = rhs))
-      } else {
-        stop('Constraint ', deparse(constraint), 'is too complicated for parser.')
-      }
-    }
-    
-  } else if (identical(rel, quote(`==`))) {
-    constraint
-    
-    # == pull everything to the left side [TODO]
-#     if (rhs == 0) {
-#       # Already canonical
-#       constraint
-#       
-#     } else if (lhs == 0) {
-#       # Almost canonical, just switch sides
-#       substitute(rhs == lhs,
-#                  list(rhs = rhs, lhs = lhs))
-#       
-#     } else {
-#       # Reverse sign of simplest side of the equation
-#       if (length(rhs) == 1) {
-#         substitute(lhs - rhs == 0,
-#                    list(lhs = lhs, rhs = rhs))
-#       } else if (length(lhs) == 1) {
-#         substitute(rhs - lhs == 0,
-#                    list(lhs = lhs, rhs = rhs))
-#       } else {
-#         stop('Complicated expressions are not yet supported. Try to rewrite constraint ',
-#              deparse(constraint), ' so that there is only one term on the LHS.')
-#       }
-#     }
-    
-  } else if (identical(rel, quote(`%in%`))) {
-    # Do nothing
-    constraint
-    
-  } else {
-    # Should never get here!
-    stop('Constraint cannot contain ', deparse(rel), '.')
-  }
-}
-
-
-add_slack <- function(constraints) {
-  nslack <- 0
-  
-  for (n in seq_along(constraints)){
-    rel <- constraints[[n]][[1]]
-    lhs <- constraints[[n]][[2]]
-    rhs <- constraints[[n]][[3]]
-    
-    # Sanity check
-    if (rhs != 0) {
-      stop('Constraint ', deparse(constraint), 'is not canonical.')
-    }
-    
-    if (identical(rel, quote(`>=`))) {
-      # New slack variable identifier
-      nslack <- nslack + 1
-      
-      # Add slack variable
-      constraints[[n]] <- substitute(lhs + s == 0, list(lhs = lhs, s = as.name(paste0('s',nslack))))
-      
-    } else if (!identical(rel, quote(`==`))) {
-      # Should never get here!
-      stop('Constraint ', deparse(constraint), 'is not canonical.')
-    }
-  }
-  
-  # Slack nonnegative constraints
-  slacks <- list()
-  for (n in seq(1, nslack)) {
-    slacks <- c(slacks, substitute(s >= 0, list(s = as.name(paste0('s', n)))))
-  }
-  
-  c(constraints, slacks)
-}
-
-
-graph_implementation <- function(constraints) {
+  # Auxiliary variable initializations
   N <- 0
-  graph <- TRUE
+  recurse <- TRUE
   
-  while (graph) {
-    # Initialize recursive graph implementation flag
-    graph <- FALSE
+  while (recurse) {
+    # Recurse over graph implementation?
+    recurse <- FALSE
     new_cnstr <- list()
     
     for (n in seq_along(constraints)) {
@@ -385,13 +249,14 @@ graph_implementation <- function(constraints) {
         
         # Update variable names to avoid clashes
         epi <- shift_vars(epi, N, pattern = 'r\\d')
-        N <- N + length(which(grepl('r\\d', unlist(lapply(epi, get_vars)))))
+        N <- N + length(which(grepl('r\\d', unlist(lapply(epi, get_vars, pattern = 'r\\d')))))
         
         # Replace constraint
         new_cnstr <- c(new_cnstr, epi)
         
-        # A nonlinearity was replaced by its graph implementation
-        graph <- TRUE
+        # If a nonlinearity was replaced by its graph implementation,
+        # recurse over it to see if another nonlinearity was used
+        recurse <- TRUE
       } else {
         new_cnstr <- c(new_cnstr, constraints[[n]])
       }
@@ -400,57 +265,121 @@ graph_implementation <- function(constraints) {
     constraints <- new_cnstr
   }
   
-  constraints
+  constraints(cvxprob) <- constraints
+  cvxprob
 }
 
 
-shift_vars <- function(expressions, N = 0, pattern = 't\\d') {
-  # Get dummy variables of the form [pattern]
-  var_old <- unique(unlist(lapply(expressions, get_varnames)))
-  var_old <- var_old[grepl(pattern, var_old)]
-  
-  if (length(var_old) != 0) {
-    # Generate new names: 't(n+N)' (n = 1,2,...)
-    var_new <- paste0(gsub('\\d', '', pattern, fixed = TRUE),
-                      seq(1,length(var_old)) + N)
-    
-    # Change the variable names iteratively to avoid clashes
-    dummy_var <- unlist(lapply(expressions, get_varnames))
-    dummy_var <- dummy_var[grepl(pattern, dummy_var)]
-    
-    while (!all(var_new %in% dummy_var)) {
-      safe_to_change <- !(var_new %in% dummy_var)
-      
-      substitutions <- setNames(lapply(as.list(var_new[safe_to_change]), as.name), var_old[safe_to_change])
-      expressions <- lapply(expressions, subs_q, env = substitutions)
-      
-      dummy_var <- unlist(lapply(expressions, get_varnames))
-      dummy_var <- dummy_var[grepl(pattern, dummy_var)]
-    }
+# [TODO] canonicalize_rhs(): canonicalize RHS of (in)equalities (A*x = b and x >= 0)
+canonicalize_rhs <- function(cvxprob) {
+  constraints <- constraints(cvxprob)
+  if (length(constraints) > 0) {
+    constraints(cvxprob) <- lapply(constraints, cvx_canonicalize_rhs)
   }
   
-  expressions
+  # Eliminate NULL resulting from trivial constraints
+  constraints(cvxprob)[sapply(constraints(cvxprob), is.null)] <- NULL
+  
+  cvxprob
 }
+  
 
-
-get_vars <- function(x) {
-  if (is.atomic(x)) {
-    character()
+# [TODO]
+cvx_canonicalize_rhs <- function(constraint) {
+  rel <- constraint[[1]]
+  lhs <- constraint[[2]]
+  rhs <- constraint[[3]]
+  
+  if (is.numeric(lhs) & is.numeric(rhs)) {
+    # Check if constraint is trivially true...
+    if (eval(constraint)) {
+      NULL
+    } else {
+      stop("Constraint ", deparse(constraint), " cannot be satisfied.", call. = FALSE)
+    }
     
-  } else if (is.name(x)) {
-    as.character(x)
+  } else if (identical(rel, quote(`==`))) {
+    # == pull everything to the left side [TODO]
+    if (rhs == 0) {
+      # Already canonical
+      constraint
+      
+    } else if (lhs == 0) {
+      # Almost canonical, just switch sides
+      substitute(rhs == lhs,
+                 list(rhs = rhs, lhs = lhs))
+      
+    } else {
+      # Reverse sign of simplest side of the equation
+      if (length(rhs) == 1) {
+        substitute(lhs - rhs == 0,
+                   list(lhs = lhs, rhs = rhs))
+      } else if (length(lhs) == 1) {
+        substitute(rhs - lhs == 0,
+                   list(lhs = lhs, rhs = rhs))
+      } else {
+        stop('Complicated expressions are not yet supported. Try to rewrite constraint ',
+             deparse(constraint), ' so that there is only one term on the LHS.')
+      }
+    }
     
-  } else if (is.call(x)) {
-    unlist(lapply(x[-1], get_vars))
-    
-  } else if (is.pairlist(x)) {
-    unlist(lapply(x, get_vars))
+  } else if (identical(rel, quote(`%in%`))) {
+    # Do nothing
+    constraint
     
   } else {
-    stop("Don't know how to handle type ", typeof(x), call. = FALSE)
+    # Should never get here!
+    stop('Constraint cannot contain ', deparse(rel), '.')
   }
 }
 
 
+# [TODO]
+add_slack <- function(constraints) {
+  # Count dummy variables in constraints
+  nslack <- length(get_vars(constraints, 't\\d'))
+  
+  # Slack constraints
+  slacks <- list()
+  
+  for (n in seq_along(constraints)){
+    rel <- constraints[[n]][[1]]
+    lhs <- constraints[[n]][[2]]
+    rhs <- constraints[[n]][[3]]
+    
+    if (identical(rel, quote(`>=`))) {
+      # New slack variable identifier
+      nslack <- nslack + 1
+      slack_name <- paste0('t', nslack)
+      
+      # Add slack variable
+      constraints[[n]] <- substitute(lhs + s == rhs,
+                                     list(lhs = lhs,
+                                          rhs = rhs,
+                                          s = as.name(slack_name)))
 
+      slacks <- c(slacks,
+                  substitute(s >= 0, list(s = as.name(slack_name))))
 
+    } else if (identical(rel, quote(`<=`))) {
+      # New slack variable identifier
+      nslack <- nslack + 1
+      slack_name <- paste0('t', nslack)
+      
+      # Add slack variable
+      constraints[[n]] <- substitute(lhs - s == rhs,
+                                     list(lhs = lhs,
+                                          rhs = rhs,
+                                          s = as.name(slack_name)))
+      
+      slacks <- c(slacks,
+                  substitute(s >= 0, list(s = as.name(slack_name))))
+      
+    } else if (!identical(rel, quote(`==`))) {
+      # Should never get here!
+      stop('Constraint ', deparse(constraint), 'is not canonical.')
+    }
+  }
+
+  c(constraints, slacks)
+}

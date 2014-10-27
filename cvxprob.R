@@ -1,7 +1,7 @@
 ## CVX problems ###################################
 
 # minimize(): create a minimization CVX problem
-minimize <- function(objective = 0){
+minimize <- function(objective = 0) {
   obj.out <- eval.parent(objective)
   
   if (!(get_curvature(obj.out) %in% c('convex', 'affine', 'constant'))) {
@@ -16,7 +16,10 @@ minimize <- function(objective = 0){
                  constraints = list(),
                  cones = list()),
             class = 'cvxprob',
-            type = 'minimization')
+            type = 'minimization',
+            env = parent.frame())
+  # [TODO] instead of including the entire parent.frame(),
+  # include only variables used in the problem (parent.frame() can be quite large!)
 }
 
 
@@ -80,6 +83,7 @@ constraints <- function(cvxprob){
 }
 
 
+# [ERASE]
 # cones(): get CVX problem cones constraints
 cones <- function(cvxprob){
   if (!is.cvxprob(cvxprob)){
@@ -90,6 +94,7 @@ cones <- function(cvxprob){
 }
 
 
+# [ERASE]
 # cones() <- : set CVX problem cone constraints (internal)
 `cones<-` <- function(cvxprob, value) {
   if (!is.list(value)) {
@@ -98,6 +103,14 @@ cones <- function(cvxprob){
   
   cvxprob$cones <- value
   cvxprob
+}
+
+
+# get_environment(): get the environment of a CVX problem
+get_environment <- function(cvxprob) {
+  stopifnot(is.cvxprob(cvxprob))
+  
+  attr(cvxprob, 'env')
 }
 
 
@@ -127,6 +140,7 @@ print.cvxprob <- function(cvxprob, ...){
       cat("\n")
     }
     
+    # [ERASE]
     for (cone in cones(cvxprob)){
       cat('\t', deparse(cone))
       cat("\n")
@@ -140,10 +154,10 @@ print.cvxprob <- function(cvxprob, ...){
   e2name <- deparse(substitute(constraint))
   
   if (inherits(constraint, 'cvx_constraint')) {
-    # Add (in)equality constraint
+    # Add (in)equality or set constraint
     cvxprob$constraints <- c(cvxprob$constraints, unclass(constraint))
   } else if (inherits(constraint, 'cvx_cone')) {
-    # Add set constraint
+    # Add set constraint [ERASE]
     cvxprob$cones <- c(cvxprob$cones, unclass(constraint))
   }
   else {
@@ -176,23 +190,6 @@ subject_to <- function(constraint) {
     
   }
 }
-# subject_to <- function(constraint) {
-#   expression <- substitute(constraint)
-#   
-#   if (identical(expression[[1]], quote(`%in%`))) {
-#     # Set constraints
-#     structure(expression, class = 'cvx_cone')
-#   } else if (identical(expression[[1]], quote(`>=`)) |
-#                identical(expression[[1]], quote(`==`)) |
-#                identical(expression[[1]], quote(`<=`))) {
-#     # (In)equality constraints
-#     structure(expression, class = 'cvx_constraint')
-#   } else if (identical(expression[[1]], quote(`>`)) |
-#                identical(expression[[1]], quote(`<`))) {
-#     # Strict inequalities
-#     stop("Strict inequalities are not supported by CVX.")
-#   }
-# }
 
 
 # %st%: shortcut for adding constraints to CVX problems
