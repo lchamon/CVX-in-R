@@ -13,8 +13,7 @@ minimize <- function(objective = 0) {
   }
   
   structure(list(objective = substitute(objective),
-                 constraints = list(),
-                 cones = list()),
+                 constraints = list()),
             class = 'cvxprob',
             type = 'minimization',
             env = parent.frame())
@@ -83,27 +82,27 @@ constraints <- function(cvxprob){
 }
 
 
-# [ERASE]
 # cones(): get CVX problem cones constraints
 cones <- function(cvxprob){
   if (!is.cvxprob(cvxprob)){
     stop('The object is not a CVX problem.')
   }
   
-  cvxprob$cones
+  cvx_cones <- sapply(constraints(cvxprob), function(x) identical(x[[1]], quote(`%in%`)))
+  constraints(cvxprob)[cvx_cones]
 }
 
 
-# [ERASE]
-# cones() <- : set CVX problem cone constraints (internal)
-`cones<-` <- function(cvxprob, value) {
-  if (!is.list(value)) {
-    stop('CVX problems cone constraints must be a list.')
+# equalities(): get CVX problem equality constraints
+equalities <- function(cvxprob){
+  if (!is.cvxprob(cvxprob)){
+    stop('The object is not a CVX problem.')
   }
   
-  cvxprob$cones <- value
-  cvxprob
+  cvx_eq <- sapply(constraints(cvxprob), function(x) identical(x[[1]], quote(`==`)))
+  constraints(cvxprob)[cvx_eq]
 }
+
 
 
 # get_environment(): get the environment of a CVX problem
@@ -137,12 +136,6 @@ print.cvxprob <- function(cvxprob, ...){
     
     for (constraint in constraints(cvxprob)){
       cat('\t', deparse(constraint))
-      cat("\n")
-    }
-    
-    # [ERASE]
-    for (cone in cones(cvxprob)){
-      cat('\t', deparse(cone))
       cat("\n")
     }
   }

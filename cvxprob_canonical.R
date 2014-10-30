@@ -47,14 +47,19 @@ linearize <- function(cvxprob){
   
   #### Step 2: Linearize constraints
   if (length(constraints(cvxprob)) > 0) {
-    # Linearize LHS and RHS of each constraint individually (using linearize)
-    # and then join them back (using cvx_linearize_affine)
+    # Linearize LHS and RHS of each constraint individually (using linearize) 
+    # and then join them back (using cvx_linearize_affine). For set constraints,
+    # do nothing!
     lin.constraints <- lapply(constraints(cvxprob),
                               function(constraint){
-                                cvx_linearize_affine(constraint[[1]],
-                                                 lapply(constraint[-1], cvx_linearize))
+                                if (!identical(constraint[[1]], quote(`%in%`))) {
+                                  cvx_linearize_affine(constraint[[1]],
+                                                       lapply(constraint[-1], cvx_linearize))
+                                } else {
+                                  constraint
+                                }
                               })
-    
+
     # Join all results avoiding name clashes
     lin.constraints <- Reduce(function(x,y) c(x, shift_vars(y,
                                                             length(get_vars(x, 't\\d')),
