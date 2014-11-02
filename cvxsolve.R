@@ -1,10 +1,13 @@
 ## Solving CVX problems ###################################
 
 # solve(): solve a CVX problem
-solve <- function(cvxprob) {
+solve.cvxprob <- function(cvxprob) {
   if (!is.cvxprob(cvxprob)) {
     stop("Provide a CVX problem to be solved.", call. = FALSE)
   }
+  
+  ### Step 0: Canonicalize problem ###########
+  cvxprob <- canonical(cvxprob)
   
   
   ### Step 1: Build problem matrix ###########
@@ -34,19 +37,42 @@ solve <- function(cvxprob) {
   #### Step 1.2: cones setup
   # Get cones
   cvx_cones <- cones(cvxprob)
-  cvx_cones
   
   # Reorganize variables in the cones to be close to each other
-  cones_vars <- unlist(lapply(cvx_cones, function(x) if (length(x[[2]]) > 1) {as.list(x[[2]][-1])} else {x[[2]]}))
-  cones_vars <- lapply(cones_vars, deparse)
-  
-  vars_vector <- c(cones_vars, setdiff(c(dummy, cvxobj), unlist(cones_vars)))
-  vars_vector
-  
   # Setup cone types and sizes
+  cones_vars <- list()
+  cones_sizes <- list()
+  cones_types <- list()
+  for (cone in cvx_cones) {
+    if (length(cone[[2]]) > 1) {
+      cones_vars <- c(cones_vars, lapply(as.list(cone[[2]][-1]), deparse))
+      cones_sizes <- c(cones_sizes, length(as.list(cone[[2]][-1])))
+      
+      if (deparse(cone[[3]]) == 'lorentz()') {
+        cones_types <- c(cones_types, 'q')
+      }
+      
+    } else {
+      cones_vars <- c(cones_vars, deparse(cone[[2]]))
+      cones_sizes <- c(cones_sizes, 1)
+      
+      if (deparse(cone[[3]]) == 'nonnegative()') {
+        cones_types <- c(cones_types, 'l')
+      }
+    }
+  }
+  
+  # Add remaining variables
+  vars_vector <- c(cones_vars, setdiff(c(dummy, cvxobj), unlist(cones_vars)))
+  
+  # Include remaining variables in cones [TODO]
+  nvars <- length(setdiff(c(dummy, cvxobj), unlist(cones_vars)))
+  cones_sizes <- c(cones_sizes, rep(1,nvars))
+  cones_types <- c(cones_types, rep('l',nvars))
   
   
   #### Step 1.3: problem matrix setup
+  
   
   
   #### Step 1.4: populate problem matrix
@@ -57,7 +83,9 @@ solve <- function(cvxprob) {
   ### Step 2: Prepare for solver (shim) ###########
   
   
+  
   ### Step 3: Solve! ###########
+  
   
   
   ### Step 4: Recover solution ###########
