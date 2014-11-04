@@ -32,12 +32,6 @@ canonical <- function(cvxprob){
   
 }
 
-# exp <- cvxfun(x) + curvature(convex) + dcprule(affine, out = convex)
-# log <- cvxfun(x) + curvature(concave) + dcprule(concave, out = concave)
-# sqrt <- cvxfun(x) + curvature(concave) + dcprule(affine, out = concave)
-# prob <- minimize() + subject_to(exp(y) <= log(2*sqrt(x)+1)) + subject_to(A*x == b)
-# canonical(prob)
-
 
 linearize <- function(cvxprob){
   #### Step 1: Linearize objetive

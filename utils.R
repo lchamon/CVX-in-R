@@ -85,6 +85,14 @@ get_vars.name <- function(x, pattern = '') {
   }
 }
 
+get_vars.symbol <- function(x, pattern = '') {
+  if (grepl(pattern, as.character(x))) {
+    as.character(x)
+  } else {
+    character()
+  }
+}
+
 get_vars.call <- function(x, pattern = '') {
   if (is.atomic(x)) {
     character()
