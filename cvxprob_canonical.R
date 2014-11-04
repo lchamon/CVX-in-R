@@ -22,13 +22,11 @@ canonical <- function(cvxprob){
   cvxprob <- graph_implementation(cvxprob)
   
   ### Step 3: Canonicalize (in)equalities ###########
-  #### Step 3.1: Canonicalize RHS (Ax = b and x >= 0)
+  #### Step 3.1: Add slack variable
+  cvxprob <- add_slack(cvxprob)
+
+  #### Step 3.2: Canonicalize RHS (Ax = b and x >= 0)
   cvxprob <- canonicalize_rhs(cvxprob)
-  
-#   #### Step 3.2: Add slack variable
-#   if (length(constraints(cvxprob)) > 0) {
-#     constraints(cvxprob) <- add_slack(constraints(cvxprob))
-#   }
 
   cvxprob
   
@@ -340,17 +338,20 @@ cvx_canonicalize_rhs <- function(constraint) {
 
 
 # [TODO]
-add_slack <- function(constraints) {
+add_slack <- function(cvxprob) {
+  # Get constraints
+  cvx_constraints <- constraints(cvxprob)
+  
   # Count dummy variables in constraints
-  nslack <- length(get_vars(constraints, 't\\d'))
+  nslack <- length(get_vars(cvx_constraints, 't\\d'))
   
   # Slack constraints
   slacks <- list()
   
-  for (n in seq_along(constraints)){
-    rel <- constraints[[n]][[1]]
-    lhs <- constraints[[n]][[2]]
-    rhs <- constraints[[n]][[3]]
+  for (n in seq_along(cvx_constraints)){
+    rel <- cvx_constraints[[n]][[1]]
+    lhs <- cvx_constraints[[n]][[2]]
+    rhs <- cvx_constraints[[n]][[3]]
     
     if (identical(rel, quote(`>=`))) {
       # New slack variable identifier
@@ -358,33 +359,33 @@ add_slack <- function(constraints) {
       slack_name <- paste0('t', nslack)
       
       # Add slack variable
-      constraints[[n]] <- substitute(lhs + s == rhs,
+      cvx_constraints[[n]] <- substitute(lhs + s == rhs,
                                      list(lhs = lhs,
                                           rhs = rhs,
                                           s = as.name(slack_name)))
 
       slacks <- c(slacks,
-                  substitute(s >= 0, list(s = as.name(slack_name))))
+                  substitute(s %in% nonnegative(), list(s = as.name(slack_name))))
 
-    } else if (identical(rel, quote(`<=`))) {
+    }
+    
+    if (identical(rel, quote(`<=`))) {
       # New slack variable identifier
       nslack <- nslack + 1
       slack_name <- paste0('t', nslack)
       
       # Add slack variable
-      constraints[[n]] <- substitute(lhs - s == rhs,
+      cvx_constraints[[n]] <- substitute(lhs - s == rhs,
                                      list(lhs = lhs,
                                           rhs = rhs,
                                           s = as.name(slack_name)))
       
       slacks <- c(slacks,
-                  substitute(s >= 0, list(s = as.name(slack_name))))
+                  substitute(s %in% nonnegative(), list(s = as.name(slack_name))))
       
-    } else if (!identical(rel, quote(`==`))) {
-      # Should never get here!
-      stop('Constraint ', deparse(constraint), 'is not canonical.')
     }
   }
 
-  c(constraints, slacks)
+  constraints(cvxprob) <- c(cvx_constraints, slacks)
+  cvxprob
 }
