@@ -1,10 +1,13 @@
 ## Solving CVX problems ###################################
 
 # solve(): solve a CVX problem
-solve <- function(cvxprob) {
+solve.cvxprob <- function(cvxprob) {
   if (!is.cvxprob(cvxprob)) {
     stop("Provide a CVX problem to be solved.", call. = FALSE)
   }
+  
+  ### Step 0: Canonicalize problem ###########
+  cvxprob <- canonical(cvxprob)
   
   
   ### Step 1: Build problem matrix ###########
@@ -34,33 +37,120 @@ solve <- function(cvxprob) {
   #### Step 1.2: cones setup
   # Get cones
   cvx_cones <- cones(cvxprob)
-  cvx_cones
   
   # Reorganize variables in the cones to be close to each other
-  cones_vars <- unlist(lapply(cvx_cones, function(x) if (length(x[[2]]) > 1) {as.list(x[[2]][-1])} else {x[[2]]}))
-  cones_vars <- lapply(cones_vars, deparse)
-  
-  vars_vector <- c(cones_vars, setdiff(c(dummy, cvxobj), unlist(cones_vars)))
-  vars_vector
-  
   # Setup cone types and sizes
+  cones_vars <- list()
+  cones_sizes <- list()
+  cones_types <- list()
+  for (cone in cvx_cones) {
+    if (length(cone[[2]]) > 1) {
+      cones_vars <- c(cones_vars, lapply(as.list(cone[[2]][-1]), deparse))
+      cones_sizes <- c(cones_sizes, length(as.list(cone[[2]][-1])))
+      
+      if (deparse(cone[[3]]) == 'lorentz()') {
+        cones_types <- c(cones_types, 'q')
+      }
+      
+    } else {
+      cones_vars <- c(cones_vars, deparse(cone[[2]]))
+      cones_sizes <- c(cones_sizes, 1)
+      
+      if (deparse(cone[[3]]) == 'nonnegative()') {
+        cones_types <- c(cones_types, 'l')
+      }
+    }
+  }
+  
+  # Add remaining variables
+  vars_vector <- c(cones_vars, setdiff(c(dummy, cvxobj), unlist(cones_vars)))
+  
+  # Include remaining variables in cones [TODO]
+  nvars <- length(setdiff(c(dummy, cvxobj), unlist(cones_vars)))
+  cones_sizes <- c(cones_sizes, rep(1,nvars))
+  cones_types <- c(cones_types, rep('l',nvars))
+  
+  #### Step 1.3: problem data setup
+  # Objetive vector
+  obj_vector <- numeric(length(vars_vector))
+  names(obj_vector) <- unlist(vars_vector)
+  
+  # Equality constraints matrix
+  eq_matrix <- matrix(0, length(equalities(cvxprob)), length(vars_vector))
+  dimnames(eq_matrix) <- list(NULL, unlist(vars_vector))
+  
+  # Affine constraints vector
+  aff_vector <- numeric(length(equalities(cvxprob)))
   
   
-  #### Step 1.3: problem matrix setup
+  #### Step 1.4: populate constraints matrix
+  eqconstraints <- equalities(cvxprob)
+  for (n in seq_along(eqconstraints)) {
+    constraint <- eqconstraints[[n]]
+    rel <- constraint[[1]]
+    lhs <- constraint[[2]]
+    rhs <- constraint[[3]]
+    
+    stopifnot(identical(rel,quote(`==`)), rhs == 0)
+    
+    vars <- get_vars(lhs)
+    
+    # Linear coefficients
+    for (var in vars_vector) {
+      coefficient <- find_coef(lhs, var)
+      
+      if (is.name(coefficient)) {
+        eq_matrix[n, var] <- eval(coefficient, envir = cvxenv)
+        vars <- setdiff(vars, var)
+        vars <- setdiff(vars, deparse(coefficient))
+        
+      } else {
+        eq_matrix[n, var] <- eval(coefficient)
+        vars <- setdiff(vars, var)
+      }
+    }
+    
+    # Affine coefficient (if any)
+    if (length(vars) != 0) {
+      coefficient <- find_coef(lhs, vars)
+      aff_vector[n] <- -1*eval(coefficient)*get(vars, cvxenv)
+    }
+  }
   
   
-  #### Step 1.4: populate problem matrix
+  #### Step 1.5: populate objective vector
+  obj <- objective(cvxprob)
+  
+  # Linear coefficients
+  for (var in vars_vector) {
+    coefficient <- find_coef(obj, var)
+    
+    if (is.name(coefficient)) {
+      obj_vector[var] <- eval(coefficient, envir = cvxenv)
+      
+    } else {
+      obj_vector[var] <- eval(coefficient)
+    }
+  }
+  
+  prob <- list(A = eq_matrix,
+               b = aff_vector,
+               c = obj_vector,
+               kvec = unlist(cones_sizes),
+               type = unlist(cones_types),
+               vars = unlist(vars_vector))
   
   
   
+  ### Step 2: Solve! ###########
+  solution <- socp(prob$A, prob$b, prob$c, prob$kvec, prob$type)
   
-  ### Step 2: Prepare for solver (shim) ###########
+  ### Step 3: Recover solution ###########
   
   
-  ### Step 3: Solve! ###########
-  
-  
-  ### Step 4: Recover solution ###########
+  for (obj in cvxobj) {
+    assign(obj, solution$x[grepl(obj, prob$vars)], envir = parent.frame())
+  }
 }
 
 

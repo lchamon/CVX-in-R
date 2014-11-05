@@ -133,13 +133,15 @@ norm <- norm +
   dcprule(affine,   constant & is.scalar(x) & x >= 1, out = convex) +
   dcprule(convex,   constant & is.scalar(x) & x >= 1, out = convex)
 
-norm2 <- cvxfun(x)
+
+## norm2(x) ##########################
+norm2 <- cvxfun(x,y,z)
 norm2 <- norm2 +
   curvature(convex) +
-  dcprule(constant, out = constant) +
-  dcprule(affine,   out = convex) +
-  dcprule(convex,   out = convex) +
-  epigraph(minimize(r1) + subject_to( c(r1, x) %in% lorentz() ))
+  dcprule(constant, constant, constant, out = constant) +
+  dcprule(affine,   affine,   affine,   out = convex) +
+  dcprule(convex,   convex,   convex,   out = convex) +
+  epigraph(minimize(r1) + subject_to( c(r1, x, y, z) %in% lorentz() ))
 
 
 
@@ -154,8 +156,8 @@ quad_over_lin <- quad_over_lin +
   dcprule(affine,   constant & is.scalar(x) & x > 0, out = convex) +
   dcprule(constant, constant & is.scalar(x) & x > 0, out = constant) +
   epigraph(minimize(r1) +
-             subject_to(r2 == y/2 + r1/2) +
-             subject_to(r3 == y/2 - r1/2) +
+             subject_to(r2 == 0.5*y + 0.5*r1) +
+             subject_to(r3 == 0.5*y - 0.5*r1) +
              subject_to( c(r2, r3, x) %in% lorentz() ) +
              subject_to( y >= 0 ))
 
