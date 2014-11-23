@@ -3,6 +3,8 @@ CVX-in-R
 
 Temporary repository for a prototype R port of CVX
 
+Demonstration video (< 2 minute, https://www.youtube.com/watch?v=fh_x3-gYM2E)
+
 TODO:
   - automatically add DCP rules when curvature and monotonicity are defined for a CVX function
   - use range of CVX objects and functions to check convexity
